@@ -1,3 +1,35 @@
 @extends('layouts.app')
-@section('content')<div class="auth"><div class="auth-card"><div class="logo-mark">F</div><h1>ورود به فراست</h1><p>برای کاربران، ورود با شماره همراه و کد یکبارمصرف انجام می‌شود.</p><form id="otpForm"><label>شماره همراه<input name="mobile" inputmode="tel" placeholder="۰۹xxxxxxxxx" required></label><button class="btn primary">دریافت کد</button></form><form id="verifyForm" class="hidden"><label>کد تأیید<input name="code" inputmode="numeric" maxlength="6" required></label><button class="btn primary">ورود</button></form><details><summary>ورود مدیر</summary><form method="post" action="/login/admin">@csrf<label>شماره مدیر<input name="mobile" required></label><label>رمز عبور<input name="password" type="password" required></label><button class="btn dark">ورود مدیر</button></form></details><div id="msg"></div></div></div>@endsection
-@push('scripts')<script>const o=document.getElementById('otpForm'),v=document.getElementById('verifyForm'),m=document.getElementById('msg');o.addEventListener('submit',async e=>{e.preventDefault();let r=await fetch('/login/request-otp',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content},body:JSON.stringify(Object.fromEntries(new FormData(o)))});let j=await r.json();m.textContent=j.message||'خطا';if(r.ok){o.classList.add('hidden');v.classList.remove('hidden');}});v.addEventListener('submit',async e=>{e.preventDefault();let r=await fetch('/login/verify',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content},body:JSON.stringify(Object.fromEntries(new FormData(v)))});if(r.redirected)location.href=r.url;else m.textContent='کد نادرست یا منقضی شده است';});</script>@endpush
+@section('content')
+<div class="auth-shell">
+  <div class="auth-card">
+    <div class="auth-brand"><div class="mark">F</div><h1>ورود به فراست</h1><p>شماره موبایل یا ایمیل؛ ساده، مرحله‌به‌مرحله و امن.</p></div>
+    @if(session('warning'))<div class="auth-message auth-error">{{ session('warning') }}</div>@endif
+    @if($continueUrl)<div class="upload-continue">پس از ورود، به همان مرحله‌ای که بودید برمی‌گردید.</div>@endif
+    <form id="phoneForm">
+      @csrf
+      <div class="auth-field"><label>شماره موبایل</label><input name="mobile" inputmode="tel" autocomplete="tel" placeholder="۰۹۱۲۱۲۳۴۵۶۷" required></div>
+      <button class="auth-btn primary" type="submit">ادامه</button>
+    </form>
+    <div id="loginMessage" class="auth-message" hidden></div>
+    <div class="auth-links"><a href="/forgot-password">فراموشی رمز عبور</a><a href="/login/email">ورود با ایمیل</a></div>
+    <div class="auth-divider">ایمیل فقط برای باشگاه مشتریان، اطلاع‌رسانی و ورود جایگزین استفاده می‌شود.</div>
+    <div class="auth-links"><a href="/">بازگشت به صفحه اصلی</a></div>
+  </div>
+</div>
+@endsection
+@push('scripts')
+<script>
+(()=>{
+ const form=document.getElementById('phoneForm'), msg=document.getElementById('loginMessage');
+ const csrf=document.querySelector('meta[name=csrf-token]').content;
+ form.addEventListener('submit',async e=>{
+   e.preventDefault(); const btn=form.querySelector('button'); btn.disabled=true; msg.hidden=false; msg.className='auth-message'; msg.textContent='در حال بررسی شماره…';
+   try{
+     const r=await fetch('/login/phone',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+     const j=await r.json(); if(!r.ok) throw new Error(j.message||'اطلاعات واردشده صحیح نیست.');
+     location.href=j.next;
+   }catch(err){msg.className='auth-message auth-error';msg.textContent=err.message;btn.disabled=false;}
+ });
+})();
+</script>
+@endpush
