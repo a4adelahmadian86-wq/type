@@ -10,7 +10,7 @@ class User extends Authenticatable
 {
     use Notifiable;
 
-    protected $fillable = ['name','mobile','password','role','is_verified','is_blocked'];
+    protected $fillable = ['name','mobile','email','password','role','is_verified','is_blocked'];
     protected $hidden = ['password','remember_token'];
     protected function casts(): array { return ['password'=>'hashed','is_verified'=>'boolean','is_blocked'=>'boolean']; }
     public function documents(): HasMany { return $this->hasMany(TypingDocument::class); }
