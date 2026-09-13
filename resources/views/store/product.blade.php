@@ -8,7 +8,7 @@
       @if($product->previews->isNotEmpty())<div class="preview-panel"><div class="preview-head"><strong>پیش‌نمایش محصول</strong><span>{{ $product->preview_pages }} صفحه اول</span></div><div class="preview-grid">@foreach($product->previews->where('is_active',true)->take($product->preview_pages) as $preview)<a href="{{ route('store.preview',$preview) }}" target="_blank" rel="noopener"><img src="{{ route('store.preview',$preview) }}" alt="پیش‌نمایش {{ $loop->iteration }}" loading="lazy"><small>صفحه {{ $loop->iteration }}</small></a>@endforeach</div></div>@endif
       <article class="product-description"><h2>توضیحات</h2>{!! nl2br(e($product->description ?: $product->short_description ?: 'توضیحی ثبت نشده است.')) !!}</article>
     </section>
-    <aside class="product-buy-card"><small>{{ $product->category?->name }}</small><h1>{{ $product->title }}</h1><p>{{ $product->short_description }}</p><div class="detail-price">{{ number_format((int)$product->price_rials / 10) }} تومان</div><button type="button" class="add-to-cart" data-product-id="{{ $product->id }}" data-product-title="{{ $product->title }}" data-product-price="{{ $product->price_rials }}">افزودن به سبد خرید</button><div class="buy-meta"><span>نسخه {{ $product->version ?: 'فعلی' }}</span><span>دانلود امن پس از خرید</span><span>مجوز {{ $product->license_type }}</span></div></aside>
+    <aside class="product-buy-card"><small>{{ $product->category?->name }}</small><h1>{{ $product->title }}</h1><p>{{ $product->short_description }}</p><div class="detail-price">{{ number_format((int)$product->price_rials / 10) }} تومان</div><button type="button" class="add-to-cart" data-product-id="{{ $product->id }}">افزودن به سبد خرید</button><div class="buy-meta"><span>نسخه {{ $product->version ?: 'فعلی' }}</span><span>دانلود امن پس از خرید</span><span>مجوز {{ $product->license_type }}</span></div></aside>
   </div>
 </div>
 @endsection
@@ -19,6 +19,6 @@
 @endpush
 @push('scripts')
 <script>
-(()=>{document.querySelectorAll('.add-to-cart').forEach(b=>b.addEventListener('click',()=>{const key='farast_cart_v1';let cart=[];try{cart=JSON.parse(localStorage.getItem(key)||'[]')}catch{}const id=Number(b.dataset.productId);const found=cart.find(x=>x.id===id);if(found)found.qty+=1;else cart.push({id,title:b.dataset.productTitle,price:Number(b.dataset.productPrice),qty:1});localStorage.setItem(key,JSON.stringify(cart));if(window.FarastCart?.refresh)window.FarastCart.refresh();b.textContent='به سبد اضافه شد';setTimeout(()=>b.textContent='افزودن به سبد خرید',1500)}))})();
+(()=>{const csrf=document.querySelector('meta[name="csrf-token"]')?.content||'';document.querySelectorAll('.add-to-cart').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{const r=await fetch('/cart/products/'+b.dataset.productId,{method:'POST',headers:{'X-CSRF-TOKEN':csrf,'Accept':'application/json','Content-Type':'application/json'},body:JSON.stringify({quantity:1})});const j=await r.json();if(!r.ok)throw new Error(j.message||'افزودن به سبد خرید ناموفق بود');b.textContent='به سبد اضافه شد';if(window.FarastCart?.refresh)window.FarastCart.refresh();setTimeout(()=>b.textContent='افزودن به سبد خرید',1500)}catch(e){alert(e.message)}finally{b.disabled=false}}))})();
 </script>
 @endpush
