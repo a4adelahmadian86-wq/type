@@ -41,6 +41,7 @@
     <link rel="stylesheet" href="/css/ui-polish.css">
     <link rel="stylesheet" href="/css/site-premium.css">
     <link rel="stylesheet" href="/css/finance.css">
+    <link rel="stylesheet" href="/css/voice.css">
 
     @if($isEditor)
         <meta name="farast-capabilities" content='@json($farastCapabilities)'>
@@ -176,12 +177,16 @@
 @endif
 
 <script src="/js/farast.js"></script>
+<script src="/js/farast-sound.js"></script>
 @if($isEditor)
     <script src="/js/editor-polish.js"></script>
     <script src="/js/editor-drop-anywhere.js"></script>
     <script src="/js/editor-payment.js"></script>
 @endif
 @stack('scripts')
+@if($isEditor)
+    <script src="/js/farast-voice.js"></script>
+@endif
 <script>document.documentElement.classList.add('js-ready');</script>
 </body>
 </html>
