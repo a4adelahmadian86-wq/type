@@ -2,20 +2,196 @@
 
 namespace App\Services;
 
+use App\Mail\OrderPaidMail;
+use App\Mail\OtpMail;
+use App\Mail\PasswordChangedMail;
+use App\Mail\TestMail;
+use App\Mail\TicketReplyMail;
+use App\Mail\WelcomeMail;
+use App\Models\EmailLog;
+use App\Models\Order;
+use App\Models\SiteSetting;
+use App\Models\Ticket;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 class EmailService
 {
-    public function sendOtp(string $email, string $code): void
+    public const TYPES = [
+        'otp' => 'کد OTP',
+        'welcome' => 'خوش‌آمدگویی',
+        'order_paid' => 'تأیید پرداخت',
+        'ticket_reply' => 'پاسخ تیکت',
+        'password_changed' => 'تغییر رمز',
+        'test' => 'ایمیل آزمایشی',
+    ];
+
+    public function isEnabled(string $type): bool
     {
-        $subject = 'کد تأیید ورود به فراست';
-        $body = "کد تأیید شما: {$code}\n\nاین کد تا ۳ دقیقه معتبر است. اگر این درخواست از طرف شما نبوده است، این پیام را نادیده بگیرید.";
+        $global = filter_var(SiteSetting::read('email_enabled', true), FILTER_VALIDATE_BOOLEAN);
+        if (! $global) {
+            return false;
+        }
 
-        Mail::raw($body, function ($message) use ($email, $subject) {
-            $message->to($email)->subject($subject);
-        });
+        return filter_var(SiteSetting::read('email_'.$type.'_enabled', true), FILTER_VALIDATE_BOOLEAN);
+    }
 
-        Log::info('farast.auth.email_otp_sent', ['email_hash' => hash('sha256', mb_strtolower($email))]);
+    public function sendOtp(string $email, string $code, ?User $user = null): void
+    {
+        if (! $this->isEnabled('otp')) {
+            Log::info('farast.email.otp_skipped_disabled', ['email_hash' => $this->hash($email)]);
+
+            return;
+        }
+
+        $this->dispatch(
+            type: 'otp',
+            to: $email,
+            user: $user,
+            subject: 'کد تأیید ورود به فراست',
+            mailable: new OtpMail($code),
+            meta: ['code_length' => strlen($code)],
+        );
+    }
+
+    public function sendWelcome(User $user): void
+    {
+        if (! $user->email || ! $this->isEnabled('welcome')) {
+            return;
+        }
+
+        $this->dispatch(
+            type: 'welcome',
+            to: $user->email,
+            user: $user,
+            subject: 'خوش آمدید به فراست',
+            mailable: new WelcomeMail(
+                name: $user->name ?: 'کاربر',
+                mobile: $user->mobile,
+                email: $user->email,
+                editorUrl: route('editor'),
+            ),
+        );
+    }
+
+    public function sendOrderPaid(User $user, Order $order): void
+    {
+        if (! $user->email || ! $this->isEnabled('order_paid')) {
+            return;
+        }
+
+        $this->dispatch(
+            type: 'order_paid',
+            to: $user->email,
+            user: $user,
+            subject: 'تأیید پرداخت سفارش #'.$order->id,
+            mailable: new OrderPaidMail(
+                name: $user->name ?: 'کاربر',
+                orderId: (int) $order->id,
+                amount: (int) $order->total_rials,
+                paidAt: optional($order->paid_at)->format('Y/m/d H:i') ?: now()->format('Y/m/d H:i'),
+                editorUrl: route('editor'),
+            ),
+            meta: ['order_id' => $order->id, 'amount' => $order->total_rials],
+        );
+    }
+
+    public function sendTicketReply(User $user, Ticket $ticket, string $messageBody): void
+    {
+        if (! $user->email || ! $this->isEnabled('ticket_reply')) {
+            return;
+        }
+
+        $this->dispatch(
+            type: 'ticket_reply',
+            to: $user->email,
+            user: $user,
+            subject: 'پاسخ جدید به تیکت: '.$ticket->subject,
+            mailable: new TicketReplyMail(
+                name: $user->name ?: 'کاربر',
+                subjectLine: $ticket->subject,
+                status: $ticket->status,
+                messageBody: mb_substr($messageBody, 0, 800),
+                supportUrl: route('support'),
+            ),
+            meta: ['ticket_id' => $ticket->id],
+        );
+    }
+
+    public function sendPasswordChanged(User $user): void
+    {
+        if (! $user->email || ! $this->isEnabled('password_changed')) {
+            return;
+        }
+
+        $this->dispatch(
+            type: 'password_changed',
+            to: $user->email,
+            user: $user,
+            subject: 'رمز عبور حساب شما تغییر کرد',
+            mailable: new PasswordChangedMail(
+                name: $user->name ?: 'کاربر',
+                loginUrl: route('login'),
+            ),
+        );
+    }
+
+    public function sendTest(string $email): void
+    {
+        $this->dispatch(
+            type: 'test',
+            to: $email,
+            user: null,
+            subject: 'ایمیل آزمایشی فراست',
+            mailable: new TestMail(),
+        );
+    }
+
+    protected function dispatch(string $type, string $to, ?User $user, string $subject, object $mailable, array $meta = []): void
+    {
+        $log = EmailLog::create([
+            'type' => $type,
+            'to_email' => mb_strtolower(trim($to)),
+            'user_id' => $user?->id,
+            'subject' => $subject,
+            'status' => 'queued',
+            'meta' => $meta,
+        ]);
+
+        try {
+            if (config('queue.default') === 'sync' || filter_var(SiteSetting::read('email_sync', false), FILTER_VALIDATE_BOOLEAN)) {
+                Mail::to($to)->send($mailable);
+            } else {
+                Mail::to($to)->queue($mailable);
+            }
+
+            $log->update(['status' => 'sent', 'sent_at' => now()]);
+            Log::info('farast.email.sent', [
+                'type' => $type,
+                'email_hash' => $this->hash($to),
+                'log_id' => $log->id,
+            ]);
+        } catch (Throwable $e) {
+            $log->update([
+                'status' => 'failed',
+                'error' => mb_substr($e->getMessage(), 0, 1000),
+            ]);
+
+            Log::error('farast.email.failed', [
+                'type' => $type,
+                'email_hash' => $this->hash($to),
+                'error' => $e->getMessage(),
+            ]);
+
+            // برای OTP در حالت توسعه/لاگ، fallback به raw نکنیم تا کنترل یکپارچه بماند
+            throw $e;
+        }
+    }
+
+    protected function hash(string $email): string
+    {
+        return hash('sha256', mb_strtolower(trim($email)));
     }
 }
