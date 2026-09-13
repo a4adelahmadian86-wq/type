@@ -35,7 +35,6 @@ Route::get('/forgot-password/reset', [AuthController::class, 'resetPasswordForm'
 Route::post('/forgot-password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10')->name('password.update');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-// Public upload shell: the file can be selected before login and is kept in the session.
 Route::get('/editor', [EditorController::class, 'create'])->name('editor');
 Route::get('/editor/pending', [EditorController::class, 'pending'])->name('editor.pending');
 Route::post('/editor/upload', [EditorController::class, 'upload'])->middleware('throttle:10,10')->name('editor.upload');
@@ -54,6 +53,8 @@ Route::middleware(['auth', 'single.editor'])->group(function () {
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('index');
+    Route::post('/settings', [AdminController::class, 'updateSettings'])->name('settings.update');
     Route::post('/pricing', [AdminController::class, 'updatePricing'])->name('pricing.update');
+    Route::post('/users/{user}/capabilities', [AdminController::class, 'updateUserCapabilities'])->name('user.capabilities');
     Route::post('/users/{user}/block', [AdminController::class, 'toggleUser'])->name('user.toggle');
 });
