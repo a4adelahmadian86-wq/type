@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AiInteraction;
+use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -14,8 +15,8 @@ class GeminiService
 
     public function transcribe(string $mime, string $base64, array $context = []): array
     {
-        $key = config('services.gemini.key');
-        $model = config('services.gemini.model', 'gemini-3.8-flash');
+        $key = SiteSetting::read('gemini_api_key') ?: config('services.gemini.key');
+        $model = SiteSetting::read('gemini_model') ?: config('services.gemini.model', 'gemini-3.8-flash');
         abort_unless($key, 503, 'سرویس هوش مصنوعی تنظیم نشده است');
         $requestId = (string) Str::uuid();
         $prompt = <<<'PROMPT'
