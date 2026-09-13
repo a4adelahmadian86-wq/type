@@ -56,6 +56,7 @@
         <link rel="stylesheet" href="/css/word-editor.css">
         <link rel="stylesheet" href="/css/word-editor-overrides.css">
         <link rel="stylesheet" href="/css/editor-pro.css">
+        <link rel="stylesheet" href="/css/editor-workspace.css">
     @endif
 
     @if($isAdmin)
@@ -156,6 +157,7 @@
     <script src="/js/editor-drop-anywhere.js"></script>
     <script src="/js/editor-payment.js"></script>
     <script src="/js/editor-pro.js"></script>
+    <script src="/js/editor-workspace.js"></script>
 @endif
 @stack('scripts')
 @if($isEditor)
