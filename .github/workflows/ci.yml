@@ -40,6 +40,9 @@ jobs:
       - name: PHP syntax check
         run: find app config routes database -name '*.php' -print0 | xargs -0 -n1 php -l
 
+      - name: JavaScript syntax check
+        run: find public/js -name '*.js' -print0 | xargs -0 -n1 node --check
+
       - name: Prepare Laravel environment
         run: |
           cp .env.example .env
