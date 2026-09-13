@@ -103,4 +103,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
     Route::post('/announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])->name('announcements.toggle');
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
+    // سیستم ایمیل حرفه‌ای
+    Route::get('/emails', [AdminController::class, 'emails'])->name('emails');
+    Route::post('/emails/settings', [AdminController::class, 'updateEmailSettings'])->name('emails.settings');
+    Route::post('/emails/test', [AdminController::class, 'sendTestEmail'])->name('emails.test');
+    Route::post('/tickets/{ticket}/reply', [SupportController::class, 'adminReply'])->name('tickets.reply');
 });
