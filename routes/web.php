@@ -8,6 +8,7 @@ use App\Http\Controllers\EditorSaveController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
+use App\Http\Controllers\StoreCartController;
 use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TypingPreflightController;
@@ -29,6 +30,10 @@ Route::get('/store', [StoreController::class, 'index'])->name('store');
 Route::get('/store/category/{slug}', [StoreController::class, 'category'])->name('store.category');
 Route::get('/store/product/{slug}', [StoreController::class, 'product'])->name('store.product');
 Route::get('/store/preview/{preview}', [StoreController::class, 'preview'])->name('store.preview');
+Route::get('/cart', [StoreCartController::class, 'index'])->name('cart');
+Route::post('/cart/products/{product}', [StoreCartController::class, 'add'])->middleware('throttle:60,10')->name('cart.add');
+Route::post('/cart/products/{product}/update', [StoreCartController::class, 'update'])->middleware('throttle:60,10')->name('cart.update');
+Route::post('/cart/products/{product}/remove', [StoreCartController::class, 'remove'])->middleware('throttle:60,10')->name('cart.remove');
 Route::get('/pricing', [EditorController::class, 'pricing'])->name('pricing');
 Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
 Route::get('/social', [SocialController::class, 'index'])->name('social');
@@ -40,11 +45,7 @@ Route::get('/assets/sounds/{file}', function (string $file) {
     abort_unless(preg_match('/^[0-9]{2}-[a-z0-9-]+\.ogg$/', $file) === 1, 404);
     $path = base_path('FARAST-UI-SOUNDS/OGG/'.$file);
     abort_unless(is_file($path), 404);
-    return response()->file($path, [
-        'Content-Type' => 'audio/ogg',
-        'Cache-Control' => 'public, max-age=31536000, immutable',
-        'X-Content-Type-Options' => 'nosniff',
-    ]);
+    return response()->file($path, ['Content-Type'=>'audio/ogg','Cache-Control'=>'public, max-age=31536000, immutable','X-Content-Type-Options'=>'nosniff']);
 })->where('file', '[0-9]{2}-[A-Za-z0-9-]+\.ogg')->name('assets.sounds');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -70,35 +71,29 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->n
 
 Route::get('/editor/pending', [EditorController::class, 'pending'])->name('editor.pending');
 Route::post('/editor/upload', [EditorController::class, 'upload'])->middleware('throttle:10,10')->name('editor.upload');
-
 Route::middleware('auth')->group(function () {
     Route::post('/editor/preflight/estimate', [TypingPreflightController::class, 'estimate'])->middleware('throttle:30,10')->name('editor.preflight.estimate');
     Route::post('/editor/preflight/accept', [TypingPreflightController::class, 'accept'])->middleware('throttle:30,10')->name('editor.preflight.accept');
     Route::post('/editor/preflight/decline', [TypingPreflightController::class, 'decline'])->middleware('throttle:30,10')->name('editor.preflight.decline');
 });
-
 Route::get('/editor', [EditorController::class, 'create'])->middleware(['auth', 'single.editor'])->name('editor');
-
 Route::middleware(['auth', 'single.editor'])->group(function () {
     Route::get('/dashboard', [EditorController::class, 'dashboard'])->name('dashboard');
     Route::post('/editor/analyze', [EditorController::class, 'analyze'])->middleware('throttle:20,10')->name('editor.analyze');
     Route::post('/editor/save', EditorSaveController::class)->middleware('throttle:120,1')->name('editor.save');
     Route::post('/editor/feedback', [EditorController::class, 'feedback'])->middleware('throttle:60,10')->name('editor.feedback');
     Route::post('/editor/voice/transcribe', [VoiceController::class, 'transcribe'])->middleware('throttle:30,10')->name('editor.voice.transcribe');
-    Route::post('/editor/export/{format}', [ExportController::class, 'export'])->whereIn('format', ['docx', 'pdf'])->middleware('throttle:10,10')->name('editor.export');
+    Route::post('/editor/export/{format}', [ExportController::class, 'export'])->whereIn('format', ['docx','pdf'])->middleware('throttle:10,10')->name('editor.export');
     Route::post('/editor/heartbeat', [EditorController::class, 'heartbeat'])->middleware('throttle:60,1')->name('editor.heartbeat');
-
     Route::get('/support', [SupportController::class, 'index'])->name('support');
     Route::post('/support/tickets', [SupportController::class, 'create'])->middleware('throttle:10,10')->name('support.create');
     Route::post('/support/tickets/{ticket}/messages', [SupportController::class, 'message'])->middleware('throttle:30,10')->name('support.message');
-
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet');
     Route::post('/wallet/top-up', [WalletController::class, 'topUp'])->middleware('throttle:10,10')->name('wallet.topup');
     Route::get('/checkout/{order}', [PaymentController::class, 'show'])->name('checkout');
     Route::post('/checkout/{order}/wallet', [PaymentController::class, 'payWithWallet'])->middleware('throttle:10,10')->name('checkout.wallet');
     Route::post('/documents/{document}/checkout', [PaymentController::class, 'createForDocument'])->middleware('throttle:10,10')->name('documents.checkout');
 });
-
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('index');
     Route::get('/finance', [AdminController::class, 'finance'])->name('finance');
