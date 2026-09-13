@@ -4,14 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Models\AiInteraction;
 use App\Services\CapabilityService;
+use App\Services\GoogleSpeechToTextService;
 use App\Services\VoiceTranscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class VoiceController extends Controller
 {
-    public function transcribe(Request $request, VoiceTranscriptionService $voice, CapabilityService $capabilities)
-    {
+    public function transcribe(
+        Request $request,
+        GoogleSpeechToTextService $googleSpeech,
+        VoiceTranscriptionService $voice,
+        CapabilityService $capabilities,
+    ) {
         $caps = $capabilities->forUser($request->user());
         abort_unless(($caps['active'] ?? false) && ($caps['can_voice'] ?? false), 403, 'تایپ صوتی برای این حساب فعال نیست.');
 
@@ -39,14 +44,21 @@ class VoiceController extends Controller
             default => $mime,
         };
 
+        $context = [
+            'user_id' => $request->user()->id,
+            'input_bytes' => strlen($bytes),
+        ];
+
         try {
-            $result = $voice->transcribe($mime, $bytes, $data['locale'], [
-                'user_id' => $request->user()->id,
-                'input_bytes' => strlen($bytes),
-            ]);
+            if ($googleSpeech->enabled() && in_array($mime, ['audio/webm', 'audio/ogg', 'audio/wav'], true)) {
+                $result = $googleSpeech->transcribe($mime, $bytes, $data['locale'], $context);
+            } else {
+                $result = $voice->transcribe($mime, $bytes, $data['locale'], $context);
+            }
         } catch (\Throwable $e) {
             Log::warning('farast.voice.transcription_failed', [
                 'user_id' => $request->user()->id,
+                'google_speech_enabled' => $googleSpeech->enabled(),
                 'error' => $e->getMessage(),
             ]);
 
@@ -59,6 +71,7 @@ class VoiceController extends Controller
         return response()->json([
             'ok' => true,
             'text' => $result['text'],
+            'engine' => $result['engine'] ?? 'gemini',
             'interaction_id' => $result['interaction_id'] ?? null,
             'request_id' => $result['request_id'] ?? null,
         ]);
