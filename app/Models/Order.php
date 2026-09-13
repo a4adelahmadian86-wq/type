@@ -22,6 +22,7 @@ class Order extends Model
     public function user(): BelongsTo { return $this->belongsTo(User::class); }
     public function document(): BelongsTo { return $this->belongsTo(TypingDocument::class, 'document_id'); }
     public function payments(): HasMany { return $this->hasMany(Payment::class); }
+    public function storeItems(): HasMany { return $this->hasMany(StoreOrderItem::class, 'order_id'); }
     public function isPaid(): bool { return $this->status === 'paid' && $this->paid_at !== null; }
     public function isDeposit(): bool { return ($this->pricing_snapshot['kind'] ?? null) === 'typing_deposit'; }
 }
