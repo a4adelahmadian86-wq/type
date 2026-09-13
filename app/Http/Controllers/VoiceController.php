@@ -32,6 +32,12 @@ class VoiceController extends Controller
         abort_if($bytes === false || $bytes === '', 422, 'فایل صوتی قابل خواندن نیست.');
 
         $mime = $file->getMimeType() ?: $file->getClientMimeType() ?: 'audio/webm';
+        $mime = match ($mime) {
+            'video/webm' => 'audio/webm',
+            'video/mp4', 'audio/mp4' => 'audio/m4a',
+            'audio/x-wav' => 'audio/wav',
+            default => $mime,
+        };
 
         try {
             $result = $voice->transcribe($mime, $bytes, $data['locale'], [
