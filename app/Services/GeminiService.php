@@ -11,15 +11,13 @@ use ZipArchive;
 
 class GeminiService
 {
-    private const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+    private const ENDPOINT='https://generativelanguage.googleapis.com/v1beta/interactions';
+    private const FILES_ENDPOINT='https://generativelanguage.googleapis.com/upload/v1beta/files';
 
-    public function transcribe(string $mime, string $base64, array $context = []): array
+    public function transcribe(string $mime,string $base64,array $context=[]):array
     {
-        $key = SiteSetting::read('gemini_api_key') ?: config('services.gemini.key');
-        $model = SiteSetting::read('gemini_model') ?: config('services.gemini.model', 'gemini-3.8-flash');
-        abort_unless($key, 503, 'سرویس هوش مصنوعی تنظیم نشده است');
-        $requestId = (string) Str::uuid();
-        $prompt = <<<'PROMPT'
+        $key=SiteSetting::read('gemini_api_key')?:config('services.gemini.key');$filesKey=SiteSetting::read('files_api_key')?:$key;$model=SiteSetting::read('gemini_model')?:config('services.gemini.model','gemini-3.8-flash');abort_unless($key,503,'سرویس هوش مصنوعی تنظیم نشده است');
+        $requestId=(string)Str::uuid();$prompt=<<<'PROMPT'
 تو موتور OCR و رونویسی دقیق یک سامانه تایپ حرفه‌ای هستی.
 وظیفه فقط رونویسی دیداری و دقیق محتوای ورودی است؛ نه ویرایش، نه بازنویسی، نه خلاصه‌سازی و نه تکمیل متن.
 قوانین غیرقابل مذاکره:
@@ -36,20 +34,29 @@ class GeminiService
 برای هر بخش متن، یک block بساز. نوع block فقط paragraph، heading، list_item، quote یا blank باشد و فقط وقتی از ظاهر منبع قابل تشخیص است از heading یا list_item استفاده کن. سطح heading را در level بده.
 برای موارد مشکوک، suggestions فقط پیشنهادهای احتمالی باشند و هرگز در text جایگزین نشوند.
 PROMPT;
-        $interaction = AiInteraction::create(['user_id'=>$context['user_id']??null,'document_id'=>$context['document_id']??null,'provider'=>'gemini','model'=>$model,'operation'=>'ocr_transcription','request_id'=>$requestId,'source_hash'=>$context['source_hash']??null,'prompt_hash'=>hash('sha256',$prompt),'input_bytes'=>(int)($context['input_bytes']??0),'status'=>'started','input_meta'=>['mime'=>$mime,'source_name'=>$context['source_name']??null]]);
-        $started=hrtime(true);
-        try {
-            $inputs=[['type'=>'text','text'=>$prompt]];$imageCount=0;
+        $interaction=AiInteraction::create(['user_id'=>$context['user_id']??null,'document_id'=>$context['document_id']??null,'provider'=>'gemini','model'=>$model,'operation'=>'ocr_transcription','request_id'=>$requestId,'source_hash'=>$context['source_hash']??null,'prompt_hash'=>hash('sha256',$prompt),'input_bytes'=>(int)($context['input_bytes']??0),'status'=>'started','input_meta'=>['mime'=>$mime,'source_name'=>$context['source_name']??null]]);$started=hrtime(true);$fileResource=null;
+        try{
+            $inputs=[['type'=>'text','text'=>$prompt]];$imageCount=0;$usedFilesApi=false;$raw=base64_decode($base64,true);abort_unless($raw!==false,422,'فایل ورودی معتبر نیست');
             if($mime==='application/zip'){
-                $raw=base64_decode($base64,true);$tmp=tempnam(sys_get_temp_dir(),'farast_zip_');file_put_contents($tmp,$raw);$zip=new ZipArchive();abort_unless($zip->open($tmp)===true,422,'فایل ZIP قابل خواندن نیست');$allowed=['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','webp'=>'image/webp'];
+                $tmp=tempnam(sys_get_temp_dir(),'farast_zip_');file_put_contents($tmp,$raw);$zip=new ZipArchive();abort_unless($zip->open($tmp)===true,422,'فایل ZIP قابل خواندن نیست');$allowed=['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','webp'=>'image/webp'];
                 for($i=0;$i<$zip->numFiles&&$imageCount<40;$i++){ $name=$zip->getNameIndex($i);$ext=strtolower(pathinfo($name,PATHINFO_EXTENSION));if(!isset($allowed[$ext]))continue;$data=$zip->getFromIndex($i);if($data===false)continue;$inputs[]=['type'=>'image','data'=>base64_encode($data),'mime_type'=>$allowed[$ext]];$imageCount++; }
                 $zip->close();@unlink($tmp);abort_if($imageCount===0,422,'فایل ZIP شامل تصویر قابل پردازش نیست');
-            }elseif(str_starts_with($mime,'image/')){$inputs[]=['type'=>'image','data'=>$base64,'mime_type'=>$mime];$imageCount=1;}elseif($mime==='application/pdf'){$inputs[]=['type'=>'document','data'=>$base64,'mime_type'=>'application/pdf'];}else{abort(422,'نوع فایل برای OCR پشتیبانی نمی‌شود');}
+            }elseif(str_starts_with($mime,'image/')||$mime==='application/pdf'){
+                $useFilesApi=strlen($raw)>20*1024*1024&&$filesKey;
+                if($useFilesApi){$fileResource=$this->uploadToFilesApi($raw,$mime,$context['source_name']??'farast-source',$filesKey);$inputs[]=['type'=>$mime==='application/pdf'?'document':'image','uri'=>$fileResource['uri'],'mime_type'=>$mime];$usedFilesApi=true;$imageCount=$mime==='application/pdf'?0:1;}
+                elseif(str_starts_with($mime,'image/')){$inputs[]=['type'=>'image','data'=>$base64,'mime_type'=>$mime];$imageCount=1;}
+                else{$inputs[]=['type'=>'document','data'=>$base64,'mime_type'=>'application/pdf'];}
+            }else abort(422,'نوع فایل برای OCR پشتیبانی نمی‌شود');
             $response=Http::timeout(180)->retry(2,700)->withHeaders(['x-goog-api-key'=>$key,'Content-Type'=>'application/json','X-Farast-Request-Id'=>$requestId])->post(self::ENDPOINT,['model'=>$model,'input'=>$inputs,'store'=>false,'system_instruction'=>'دقت رونویسی از هر نوع زیباتر کردن متن مهم‌تر است. متن را هرگز از خودت تولید نکن.','response_format'=>['type'=>'text','mime_type'=>'application/json','schema'=>['type'=>'object','properties'=>['rejected'=>['type'=>'boolean'],'reason'=>['type'=>'string'],'page_count'=>['type'=>'integer'],'blocks'=>['type'=>'array','items'=>['type'=>'object','properties'=>['type'=>['type'=>'string','enum'=>['paragraph','heading','list_item','quote','blank']],'level'=>['type'=>'integer'],'text'=>['type'=>'string'],'uncertain'=>['type'=>'array','items'=>['type'=>'object','properties'=>['text'=>['type'=>'string'],'suggestions'=>['type'=>'array','items'=>['type'=>'string']]],'required'=>['text','suggestions']]]],'required'=>['type','level','text','uncertain']]]],'required'=>['rejected','reason','page_count','blocks']]]]);
-            $latency=(int)((hrtime(true)-$started)/1000000);if(!$response->successful())throw new \RuntimeException('Gemini HTTP '.$response->status().' '.$response->body());
-            $providerId=$response->json('id');$rawOutput=collect($response->json('outputs',[]))->filter(fn($o)=>($o['type']??null)==='text')->pluck('text')->implode('');if($rawOutput==='')$rawOutput=collect($response->json('steps',[]))->flatMap(fn($s)=>$s['content']??[])->filter(fn($c)=>($c['type']??null)==='text')->pluck('text')->implode('');$json=json_decode($rawOutput,true);if(!is_array($json))throw new \RuntimeException('Gemini returned invalid JSON');
-            $interaction->update(['provider_interaction_id'=>$providerId,'latency_ms'=>$latency,'output_bytes'=>strlen($rawOutput),'status'=>'completed','output_meta'=>['http_status'=>$response->status(),'image_count'=>$imageCount,'block_count'=>count($json['blocks']??[]),'rejected'=>(bool)($json['rejected']??false)]]);
-            Log::info('farast.ai.completed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'provider_interaction_id'=>$providerId,'model'=>$model,'latency_ms'=>$latency,'status'=>'completed']);$json['_ai_interaction_id']=$interaction->id;$json['_request_id']=$requestId;return $json;
+            $latency=(int)((hrtime(true)-$started)/1000000);if(!$response->successful())throw new \RuntimeException('Gemini HTTP '.$response->status().' '.$response->body());$providerId=$response->json('id');$rawOutput=collect($response->json('outputs',[]))->filter(fn($o)=>($o['type']??null)==='text')->pluck('text')->implode('');if($rawOutput==='')$rawOutput=collect($response->json('steps',[]))->flatMap(fn($s)=>$s['content']??[])->filter(fn($c)=>($c['type']??null)==='text')->pluck('text')->implode('');$json=json_decode($rawOutput,true);if(!is_array($json))throw new \RuntimeException('Gemini returned invalid JSON');
+            $interaction->update(['provider_interaction_id'=>$providerId,'latency_ms'=>$latency,'output_bytes'=>strlen($rawOutput),'status'=>'completed','output_meta'=>['http_status'=>$response->status(),'image_count'=>$imageCount,'block_count'=>count($json['blocks']??[]),'rejected'=>(bool)($json['rejected']??false),'files_api'=>$usedFilesApi]]);Log::info('farast.ai.completed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'provider_interaction_id'=>$providerId,'model'=>$model,'latency_ms'=>$latency,'status'=>'completed','files_api'=>$usedFilesApi]);$json['_ai_interaction_id']=$interaction->id;$json['_request_id']=$requestId;return $json;
         }catch(\Throwable $e){$latency=(int)((hrtime(true)-$started)/1000000);$interaction->update(['latency_ms'=>$latency,'status'=>'failed','error_message'=>mb_substr($e->getMessage(),0,4000)]);Log::error('farast.ai.failed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'model'=>$model,'latency_ms'=>$latency,'error'=>$e->getMessage()]);throw $e;}
+    }
+
+    private function uploadToFilesApi(string $bytes,string $mime,string $displayName,string $key):array
+    {
+        $start=Http::timeout(60)->withHeaders(['x-goog-api-key'=>$key,'X-Goog-Upload-Protocol'=>'resumable','X-Goog-Upload-Command'=>'start','X-Goog-Upload-Header-Content-Length'=>(string)strlen($bytes),'X-Goog-Upload-Header-Content-Type'=>$mime,'Content-Type'=>'application/json'])->post(self::FILES_ENDPOINT,['file'=>['display_name'=>Str::limit($displayName,120,'')]]);
+        $uploadUrl=$start->header('X-Goog-Upload-URL')?:$start->header('x-goog-upload-url');if(!$start->successful()||!$uploadUrl)throw new \RuntimeException('Gemini Files upload initialization failed');
+        $finish=Http::timeout(180)->withHeaders(['Content-Length'=>(string)strlen($bytes),'X-Goog-Upload-Offset'=>'0','X-Goog-Upload-Command'=>'upload, finalize'])->withBody($bytes,'application/octet-stream')->post($uploadUrl);if(!$finish->successful())throw new \RuntimeException('Gemini Files upload failed: '.$finish->status());$uri=$finish->json('file.uri');$name=$finish->json('file.name');if(!$uri)throw new \RuntimeException('Gemini Files API did not return a URI');return ['uri'=>$uri,'name'=>$name];
     }
 }
