@@ -10,14 +10,16 @@ return new class extends Migration {
     {
         if (!Schema::hasTable('users')) return;
         $phone = trim((string) env('FARAST_ADMIN_PHONE', '09151234567'));
+        if ($phone === '') return;
         $password = (string) env('FARAST_ADMIN_PASSWORD', '');
-        if ($phone === '' || $password === '') return;
-        $user = User::firstOrNew(['mobile' => $phone]);
+        $user = User::where('mobile', $phone)->first();
+        if (!$user && $password === '') return;
+        $user ??= new User(['mobile' => $phone]);
         $user->name = $user->name ?: 'مدیر اصلی';
         $user->role = 'admin';
         $user->is_verified = true;
         $user->is_blocked = false;
-        if (!$user->exists || !$user->password) $user->password = Hash::make($password);
+        if ($password !== '' && !$user->password) $user->password = Hash::make($password);
         $user->save();
     }
 
