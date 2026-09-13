@@ -158,6 +158,7 @@
     <script src="/js/editor-payment.js"></script>
     <script src="/js/editor-pro.js"></script>
     <script src="/js/editor-workspace.js"></script>
+    <script src="/js/editor-word-extended.js"></script>
 @endif
 @stack('scripts')
 @if($isEditor)
