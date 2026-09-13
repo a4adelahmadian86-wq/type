@@ -19,13 +19,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 Route::get('/', function () {
-    $announcements = Schema::hasTable('announcements')
-        ? Announcement::visible()->latest()->limit(4)->get()
-        : collect();
-
+    $announcements = Schema::hasTable('announcements') ? Announcement::visible()->latest()->limit(4)->get() : collect();
     return view('home', compact('announcements'));
 })->name('home');
-
 Route::get('/store', [StoreController::class, 'index'])->name('store');
 Route::get('/store/category/{slug}', [StoreController::class, 'category'])->name('store.category');
 Route::get('/store/product/{slug}', [StoreController::class, 'product'])->name('store.product');
@@ -34,17 +30,16 @@ Route::get('/cart', [StoreCartController::class, 'index'])->name('cart');
 Route::post('/cart/products/{product}', [StoreCartController::class, 'add'])->middleware('throttle:60,10')->name('cart.add');
 Route::post('/cart/products/{product}/update', [StoreCartController::class, 'update'])->middleware('throttle:60,10')->name('cart.update');
 Route::post('/cart/products/{product}/remove', [StoreCartController::class, 'remove'])->middleware('throttle:60,10')->name('cart.remove');
+Route::post('/cart/checkout', [StoreCartController::class, 'checkout'])->middleware(['auth','throttle:10,10'])->name('cart.checkout');
 Route::get('/pricing', [EditorController::class, 'pricing'])->name('pricing');
 Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
 Route::get('/social', [SocialController::class, 'index'])->name('social');
 Route::view('/terms', 'legal.terms')->name('terms');
 Route::view('/refund-policy', 'legal.refunds')->name('refunds');
 Route::view('/privacy', 'legal.privacy')->name('privacy');
-
 Route::get('/assets/sounds/{file}', function (string $file) {
-    abort_unless(preg_match('/^[0-9]{2}-[a-z0-9-]+\.ogg$/', $file) === 1, 404);
-    $path = base_path('FARAST-UI-SOUNDS/OGG/'.$file);
-    abort_unless(is_file($path), 404);
+    abort_unless(preg_match('/^[0-9]{2}-[a-z0-9-]+\.ogg$/', $file) === 1);
+    $path = base_path('FARAST-UI-SOUNDS/OGG/'.$file); abort_unless(is_file($path), 404);
     return response()->file($path, ['Content-Type'=>'audio/ogg','Cache-Control'=>'public, max-age=31536000, immutable','X-Content-Type-Options'=>'nosniff']);
 })->where('file', '[0-9]{2}-[A-Za-z0-9-]+\.ogg')->name('assets.sounds');
 
@@ -68,7 +63,6 @@ Route::post('/forgot-password/verify', [AuthController::class, 'verifyPasswordRe
 Route::get('/forgot-password/reset', [AuthController::class, 'resetPasswordForm'])->name('password.reset');
 Route::post('/forgot-password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10')->name('password.update');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
-
 Route::get('/editor/pending', [EditorController::class, 'pending'])->name('editor.pending');
 Route::post('/editor/upload', [EditorController::class, 'upload'])->middleware('throttle:10,10')->name('editor.upload');
 Route::middleware('auth')->group(function () {
