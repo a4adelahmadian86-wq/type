@@ -5,10 +5,12 @@ use App\Http\Controllers\EditorController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AnnouncementController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', fn () => view('home'))->name('home');
+Route::get('/', fn () => view('home', ['announcements' => \App\Models\Announcement::visible()->latest()->limit(4)->get()]))->name('home');
 Route::get('/pricing', [EditorController::class, 'pricing'])->name('pricing');
+Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
 Route::view('/terms', 'legal.terms')->name('terms');
 Route::view('/refund-policy', 'legal.refunds')->name('refunds');
 Route::view('/privacy', 'legal.privacy')->name('privacy');
@@ -57,4 +59,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/pricing', [AdminController::class, 'updatePricing'])->name('pricing.update');
     Route::post('/users/{user}/capabilities', [AdminController::class, 'updateUserCapabilities'])->name('user.capabilities');
     Route::post('/users/{user}/block', [AdminController::class, 'toggleUser'])->name('user.toggle');
+    Route::post('/announcements', [AnnouncementController::class, 'store'])->name('announcements.store');
+    Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
+    Route::post('/announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])->name('announcements.toggle');
+    Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 });
