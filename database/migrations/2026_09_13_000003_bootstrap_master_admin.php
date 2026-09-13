@@ -9,9 +9,9 @@ return new class extends Migration {
     public function up(): void
     {
         if (!Schema::hasTable('users')) return;
-        $phone = trim((string) env('FARAST_ADMIN_PHONE', '09151234567'));
+        $phone = trim((string) env('FARAST_ADMIN_PHONE', env('ADMIN_MOBILE', '09151234567')));
         if ($phone === '') return;
-        $password = (string) env('FARAST_ADMIN_PASSWORD', '');
+        $password = (string) env('FARAST_ADMIN_PASSWORD', env('ADMIN_INITIAL_PASSWORD', ''));
         $user = User::where('mobile', $phone)->first();
         if (!$user && $password === '') return;
         $user ??= new User(['mobile' => $phone]);
@@ -25,7 +25,7 @@ return new class extends Migration {
 
     public function down(): void
     {
-        $phone = trim((string) env('FARAST_ADMIN_PHONE', '09151234567'));
+        $phone = trim((string) env('FARAST_ADMIN_PHONE', env('ADMIN_MOBILE', '09151234567')));
         if ($phone !== '') User::where('mobile', $phone)->where('role', 'admin')->delete();
     }
 };
