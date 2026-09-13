@@ -39,8 +39,14 @@ class TypingPreflightController extends Controller
         $deposit = $depositPercent > 0 ? (int) ceil(($payable * $depositPercent / 100) / 1000) * 1000 : 0;
         $hash = $preflight->fileHash($path);
 
+        $accepted = $request->session()->get('typing_preflight_accepted');
+        $alreadyAccepted = is_array($accepted)
+            && hash_equals((string) ($accepted['path'] ?? ''), $path)
+            && hash_equals((string) ($accepted['hash'] ?? ''), $hash);
+
         $mode = 'confirm';
-        if ($caps['unlimited'] || ($pages <= 1 && $freeApplied > 0 && $payable === 0)) $mode = 'free';
+        if ($alreadyAccepted) $mode = 'accepted';
+        elseif ($caps['unlimited'] || ($pages <= 1 && $freeApplied > 0 && $payable === 0)) $mode = 'free';
         elseif ($depositPercent > 0) $mode = 'deposit';
 
         $payload = [
@@ -105,6 +111,19 @@ class TypingPreflightController extends Controller
                 ->get()
                 ->first(fn (Order $order) => ($order->pricing_snapshot['source_hash'] ?? null) === $hash);
 
+            if ($existing && $existing->status === 'deposit_paid') {
+                $request->session()->put('typing_preflight_deposit_order', $existing->id);
+                $request->session()->put('typing_preflight_accepted', [
+                    'path' => $path,
+                    'hash' => $hash,
+                    'pages' => $pages,
+                    'accepted_at' => now()->toIso8601String(),
+                    'deposit_order_id' => $existing->id,
+                ]);
+
+                return response()->json(['ok' => true, 'action' => 'editor', 'editor_url' => route('editor')]);
+            }
+
             $order = $existing ?: Order::create([
                 'user_id' => $user->id,
                 'document_id' => null,
@@ -150,21 +169,14 @@ class TypingPreflightController extends Controller
             'accepted_at' => now()->toIso8601String(),
         ]);
 
-        return response()->json([
-            'ok' => true,
-            'action' => 'editor',
-            'editor_url' => route('editor'),
-        ]);
+        return response()->json(['ok' => true, 'action' => 'editor', 'editor_url' => route('editor')]);
     }
 
     public function decline(Request $request, DeclineMessageService $messages)
     {
         $request->session()->forget(['typing_preflight_quote', 'typing_preflight_accepted']);
 
-        return response()->json([
-            'ok' => true,
-            'message' => $messages->next($request->session()),
-        ]);
+        return response()->json(['ok' => true, 'message' => $messages->next($request->session())]);
     }
 
     private function resolveSource(Request $request): array
