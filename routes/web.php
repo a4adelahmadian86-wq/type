@@ -6,9 +6,18 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\WalletController;
+use App\Http\Controllers\PaymentController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
+use App\Models\Announcement;
 
-Route::get('/', fn () => view('home', ['announcements' => \App\Models\Announcement::visible()->latest()->limit(4)->get()]))->name('home');
+Route::get('/', function () {
+    $announcements = Schema::hasTable('announcements')
+        ? Announcement::visible()->latest()->limit(4)->get()
+        : collect();
+    return view('home', compact('announcements'));
+})->name('home');
 Route::get('/pricing', [EditorController::class, 'pricing'])->name('pricing');
 Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
 Route::view('/terms', 'legal.terms')->name('terms');
@@ -51,6 +60,11 @@ Route::middleware(['auth', 'single.editor'])->group(function () {
     Route::get('/support', [SupportController::class, 'index'])->name('support');
     Route::post('/support/tickets', [SupportController::class, 'create'])->middleware('throttle:10,10')->name('support.create');
     Route::post('/support/tickets/{ticket}/messages', [SupportController::class, 'message'])->middleware('throttle:30,10')->name('support.message');
+    Route::get('/wallet', [WalletController::class, 'index'])->name('wallet');
+    Route::post('/wallet/top-up', [WalletController::class, 'topUp'])->middleware('throttle:10,10')->name('wallet.topup');
+    Route::get('/checkout/{order}', [PaymentController::class, 'show'])->name('checkout');
+    Route::post('/checkout/{order}/wallet', [PaymentController::class, 'payWithWallet'])->middleware('throttle:10,10')->name('checkout.wallet');
+    Route::post('/documents/{document}/checkout', [PaymentController::class, 'createForDocument'])->middleware('throttle:10,10')->name('documents.checkout');
 });
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
