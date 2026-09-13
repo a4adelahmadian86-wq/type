@@ -28,6 +28,27 @@ class PricingService
         ];
     }
 
+    public function estimateByPages(int $pages): array
+    {
+        $rules = PricingRule::where('active', true)->pluck('value', 'key');
+        $pages = max(1, $pages);
+        $pageUnit = max(0, (int)($rules['page_base'] ?? 35000));
+        $price = $pages * $pageUnit;
+
+        return [
+            'pages' => $pages,
+            'price_rials' => $price,
+            'free_page_value_rials' => $pageUnit,
+            'is_estimate' => true,
+            'breakdown' => [
+                'base_page' => $pageUnit,
+                'page_unit' => $pageUnit,
+                'language_factor' => null,
+                'formula_cost' => null,
+            ],
+        ];
+    }
+
     private function stats(string $text): array
     {
         preg_match_all('/[\p{L}\p{N}]+(?:\x{200c}[\p{L}\p{N}]+)*/u', trim($text), $m);
