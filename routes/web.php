@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminOperationsController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorController;
@@ -96,6 +97,7 @@ Route::middleware(['auth', 'single.editor'])->group(function () {
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminController::class, 'index'])->name('index');
+    Route::get('/operations', [AdminOperationsController::class, 'index'])->name('operations');
     Route::get('/finance', [AdminController::class, 'finance'])->name('finance');
     Route::post('/finance', [AdminController::class, 'updateFinance'])->name('finance.update');
     Route::post('/finance/users/{user}/wallet', [AdminController::class, 'adjustWallet'])->name('finance.wallet');
