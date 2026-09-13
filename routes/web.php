@@ -8,6 +8,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
 use App\Http\Controllers\SupportController;
+use App\Http\Controllers\TypingPreflightController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Controllers\WalletController;
 use App\Models\Announcement;
@@ -64,9 +65,16 @@ Route::get('/forgot-password/reset', [AuthController::class, 'resetPasswordForm'
 Route::post('/forgot-password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:10,10')->name('password.update');
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 
-Route::get('/editor', [EditorController::class, 'create'])->name('editor');
 Route::get('/editor/pending', [EditorController::class, 'pending'])->name('editor.pending');
 Route::post('/editor/upload', [EditorController::class, 'upload'])->middleware('throttle:10,10')->name('editor.upload');
+
+Route::middleware('auth')->group(function () {
+    Route::post('/editor/preflight/estimate', [TypingPreflightController::class, 'estimate'])->middleware('throttle:30,10')->name('editor.preflight.estimate');
+    Route::post('/editor/preflight/accept', [TypingPreflightController::class, 'accept'])->middleware('throttle:30,10')->name('editor.preflight.accept');
+    Route::post('/editor/preflight/decline', [TypingPreflightController::class, 'decline'])->middleware('throttle:30,10')->name('editor.preflight.decline');
+});
+
+Route::get('/editor', [EditorController::class, 'create'])->middleware(['auth', 'single.editor'])->name('editor');
 
 Route::middleware(['auth', 'single.editor'])->group(function () {
     Route::get('/dashboard', [EditorController::class, 'dashboard'])->name('dashboard');
@@ -104,7 +112,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])->name('announcements.toggle');
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
 
-    // سیستم ایمیل حرفه‌ای
     Route::get('/emails', [AdminController::class, 'emails'])->name('emails');
     Route::post('/emails/settings', [AdminController::class, 'updateEmailSettings'])->name('emails.settings');
     Route::post('/emails/test', [AdminController::class, 'sendTestEmail'])->name('emails.test');
