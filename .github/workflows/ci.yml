@@ -1,25 +1,71 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
 jobs:
   php:
     runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: farast_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, pdo_mysql, pdo_sqlite, dom, zip
-      - run: composer validate --no-check-publish
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: find app config routes database -name '*.php' -print0 | xargs -0 -n1 php -l
-      - run: cp .env.example .env
-      - run: php artisan key:generate --force
-      - run: mkdir -p database && touch database/ci.sqlite
-        shell: bash
-      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan migrate --force
-      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan route:list --no-ansi
-      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan view:cache
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP syntax check
+        run: find app config routes database -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Prepare Laravel environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+
+      - name: MariaDB migration check
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: farast_ci
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          CACHE_STORE: file
+          SESSION_DRIVER: file
+          QUEUE_CONNECTION: sync
+        run: php artisan migrate:fresh --force
+
+      - name: SQLite migration check
+        run: |
+          mkdir -p database
+          touch database/ci.sqlite
+          DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan migrate:fresh --force
+
+      - name: Route check
+        run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan route:list --no-ansi
+
+      - name: Blade compilation check
+        run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan view:cache
