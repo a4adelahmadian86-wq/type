@@ -8,6 +8,7 @@ use App\Http\Controllers\EditorSaveController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TypingPreflightController;
 use App\Http\Controllers\VoiceController;
@@ -24,6 +25,10 @@ Route::get('/', function () {
     return view('home', compact('announcements'));
 })->name('home');
 
+Route::get('/store', [StoreController::class, 'index'])->name('store');
+Route::get('/store/category/{slug}', [StoreController::class, 'category'])->name('store.category');
+Route::get('/store/product/{slug}', [StoreController::class, 'product'])->name('store.product');
+Route::get('/store/preview/{preview}', [StoreController::class, 'preview'])->name('store.preview');
 Route::get('/pricing', [EditorController::class, 'pricing'])->name('pricing');
 Route::get('/announcements', [AnnouncementController::class, 'index'])->name('announcements');
 Route::get('/social', [SocialController::class, 'index'])->name('social');
