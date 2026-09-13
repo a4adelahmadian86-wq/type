@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'single.editor' => App\Http\Middleware\EnsureSingleEditor::class,
             'admin' => App\Http\Middleware\AdminOnly::class,
         ]);
+        $middleware->append(App\Http\Middleware\EnsurePrivateStorageDisk::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*') || $request->expectsJson());
