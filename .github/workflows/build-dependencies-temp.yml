@@ -1,0 +1,44 @@
+name: Temporary Type Dependency Builder
+
+on:
+  push:
+    branches:
+      - temp-build-deps-20260913
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, mysql, pdo_mysql, zip, curl, bcmath
+          tools: composer
+          coverage: none
+
+      - name: Resolve and install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --no-scripts
+
+      - name: Optimize autoload
+        run: composer dump-autoload --optimize --no-interaction --no-scripts
+
+      - name: Package dependencies
+        run: |
+          tar -czf vendor.tar.gz vendor
+          cp composer.lock composer.lock.build
+
+      - name: Upload dependency bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-dependencies
+          path: |
+            vendor.tar.gz
+            composer.lock.build
+          retention-days: 1
