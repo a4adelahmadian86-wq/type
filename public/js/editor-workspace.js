@@ -30,6 +30,7 @@
     };
 
     const setTab=(name,focus=false)=>{
+      if(name==='file') return;
       let active=panels.find(p=>p.id==='ribbon-'+name);
       if(!active){ name='home'; active=panels.find(p=>p.id==='ribbon-home'); }
       panels.forEach(panel=>{
@@ -50,7 +51,7 @@
 
     app.addEventListener('click',(event)=>{
       const tab=event.target.closest?.('.word-tab[data-tab]');
-      if(!tab || !app.contains(tab)) return;
+      if(!tab || !app.contains(tab) || tab.dataset.tab==='file') return;
       event.preventDefault();
       event.stopImmediatePropagation();
       setTab(tab.dataset.tab);
@@ -225,13 +226,14 @@
     labelTooltips();
 
     const observer=new MutationObserver(()=>{
+      if(app.dataset.activeRibbon==='file') return;
       const active=tabs.find(t=>t.classList.contains('active'))?.dataset.tab || app.dataset.activeRibbon || 'home';
       const visible=panels.filter(p=>!p.classList.contains('hidden'));
       if(visible.length!==1 || visible[0].id!=='ribbon-'+active) setTab(active);
     });
     observer.observe(app,{subtree:true,childList:false,attributes:true,attributeFilter:['class','hidden']});
 
-    window.FarastEditorWorkspace={version:'1.0.0',setTab,enforceScroll,showContextMenu:showMenu};
+    window.FarastEditorWorkspace={version:'1.0.1',setTab,enforceScroll,showContextMenu:showMenu};
   };
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
