@@ -14,6 +14,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Services\CapabilityService;
 use App\Services\EmailService;
+use App\Services\MailConfigService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -212,7 +213,7 @@ class AdminController extends Controller
         return back();
     }
 
-    public function emails()
+    public function emails(MailConfigService $mailConfig)
     {
         $flags = ['email_enabled' => true];
         foreach (array_keys(EmailService::TYPES) as $type) {
@@ -231,13 +232,25 @@ class AdminController extends Controller
             ? Ticket::with('user')->latest()->limit(30)->get()
             : collect();
 
+        $provider = $mailConfig->currentProvider();
+
         return view('admin.emails', [
             'flags' => $flags,
             'types' => EmailService::TYPES,
             'logs' => $logs,
             'tickets' => $tickets,
-            'mailFrom' => config('mail.from.address'),
-            'mailer' => config('mail.default'),
+            'mailFrom' => SiteSetting::read('mail_from_address', config('mail.from.address')),
+            'mailFromName' => SiteSetting::read('mail_from_name', config('mail.from.name')),
+            'mailer' => $provider,
+            'providers' => MailConfigService::PROVIDERS,
+            'providerConfigured' => $mailConfig->providerConfigured($provider),
+            'mailHost' => SiteSetting::read('mail_host', env('MAIL_HOST')),
+            'mailPort' => SiteSetting::read('mail_port', env('MAIL_PORT', 587)),
+            'mailUsername' => SiteSetting::read('mail_username', env('MAIL_USERNAME')),
+            'mailEncryption' => SiteSetting::read('mail_encryption', env('MAIL_ENCRYPTION', 'tls')),
+            'hasResendKey' => filled(SiteSetting::read('resend_api_key', env('RESEND_API_KEY'))),
+            'hasBrevoKey' => filled(SiteSetting::read('brevo_api_key', env('BREVO_API_KEY'))),
+            'hasSmtpPassword' => filled(SiteSetting::read('mail_password', env('MAIL_PASSWORD'))),
         ]);
     }
 
@@ -252,7 +265,62 @@ class AdminController extends Controller
 
         SiteSetting::write('email_sync', $request->boolean('email_sync') ? '1' : '0');
 
-        return back()->with('status', 'تنظیمات ایمیل ذخیره شد.');
+        $data = $request->validate([
+            'mail_provider' => ['required', 'in:log,smtp,mailtrap,brevo,resend'],
+            'mail_from_address' => ['nullable', 'email', 'max:255'],
+            'mail_from_name' => ['nullable', 'string', 'max:120'],
+            'mail_host' => ['nullable', 'string', 'max:200'],
+            'mail_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'mail_username' => ['nullable', 'string', 'max:200'],
+            'mail_password' => ['nullable', 'string', 'max:500'],
+            'mail_encryption' => ['nullable', 'in:tls,ssl,null'],
+            'resend_api_key' => ['nullable', 'string', 'max:500'],
+            'brevo_api_key' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        SiteSetting::write('mail_provider', $data['mail_provider']);
+
+        if (filled($data['mail_from_address'] ?? null)) {
+            SiteSetting::write('mail_from_address', trim($data['mail_from_address']));
+        }
+        if (filled($data['mail_from_name'] ?? null)) {
+            SiteSetting::write('mail_from_name', trim($data['mail_from_name']));
+        }
+        if (array_key_exists('mail_host', $data) && $data['mail_host'] !== null) {
+            SiteSetting::write('mail_host', trim((string) $data['mail_host']));
+        }
+        if (array_key_exists('mail_port', $data) && $data['mail_port'] !== null) {
+            SiteSetting::write('mail_port', (string) $data['mail_port']);
+        }
+        if (array_key_exists('mail_username', $data) && $data['mail_username'] !== null) {
+            SiteSetting::write('mail_username', trim((string) $data['mail_username']));
+        }
+        if (filled($data['mail_password'] ?? null)) {
+            SiteSetting::write('mail_password', trim($data['mail_password']), true);
+        }
+        if (array_key_exists('mail_encryption', $data)) {
+            $enc = $data['mail_encryption'] === 'null' ? '' : ($data['mail_encryption'] ?? 'tls');
+            SiteSetting::write('mail_encryption', $enc);
+        }
+        if (filled($data['resend_api_key'] ?? null)) {
+            SiteSetting::write('resend_api_key', trim($data['resend_api_key']), true);
+        }
+        if (filled($data['brevo_api_key'] ?? null)) {
+            SiteSetting::write('brevo_api_key', trim($data['brevo_api_key']), true);
+        }
+
+        // presetهای پیش‌فرض برای راحتی
+        if ($data['mail_provider'] === 'mailtrap' && empty($data['mail_host'])) {
+            SiteSetting::write('mail_host', 'sandbox.smtp.mailtrap.io');
+            SiteSetting::write('mail_port', '2525');
+        }
+        if ($data['mail_provider'] === 'brevo' && empty($data['mail_host'])) {
+            SiteSetting::write('mail_host', 'smtp-relay.brevo.com');
+            SiteSetting::write('mail_port', '587');
+            SiteSetting::write('mail_encryption', 'tls');
+        }
+
+        return back()->with('status', 'تنظیمات ایمیل و سرویس‌دهنده ذخیره شد.');
     }
 
     public function sendTestEmail(Request $request, EmailService $emailService)

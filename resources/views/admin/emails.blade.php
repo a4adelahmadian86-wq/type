@@ -21,7 +21,7 @@
       <div>
         <span class="admin-kicker">EMAIL SYSTEM</span>
         <h1>سیستم ایمیل حرفه‌ای</h1>
-        <p>فعال/غیرفعال‌سازی انواع ایمیل، ارسال تست، مشاهده لاگ و پاسخ به تیکت‌ها از یک پنل.</p>
+        <p>سرویس‌های رایگان رایج، کنترل انواع ایمیل، تست ارسال و لاگ از یک پنل.</p>
       </div>
       <div class="admin-profile">
         <div class="profile-avatar">م</div>
@@ -42,20 +42,90 @@
       </div>
     @endif
 
+    {{-- سرویس‌دهنده --}}
     <section class="admin-section">
       <div class="section-heading">
         <div>
-          <span class="section-icon"><i class="fa-solid fa-sliders"></i></span>
+          <span class="section-icon"><i class="fa-solid fa-cloud"></i></span>
           <div>
-            <h2>کنترل انواع ایمیل</h2>
-            <p>می‌توانید کل سیستم یا هر نوع ایمیل را جداگانه خاموش کنید.</p>
+            <h2>سرویس‌دهنده ایمیل (رایگان)</h2>
+            <p>Resend، Brevo و Mailtrap برای شروع رایگان و پایدار پیشنهاد می‌شوند.</p>
           </div>
         </div>
-        <span class="configured-pill">Mailer: {{ $mailer }} · From: {{ $mailFrom }}</span>
+        <span class="configured-pill {{ $providerConfigured ? '' : 'offline' }}">
+          {{ $providers[$mailer] ?? $mailer }} · {{ $providerConfigured ? 'آماده' : 'نیاز به تنظیم' }}
+        </span>
       </div>
 
       <form method="post" action="{{ route('admin.emails.settings') }}" class="settings-grid">
         @csrf
+
+        <div class="field">
+          <label>سرویس‌دهنده</label>
+          <select name="mail_provider">
+            @foreach($providers as $key => $label)
+              <option value="{{ $key }}" @selected($mailer === $key)>{{ $label }}</option>
+            @endforeach
+          </select>
+          <small>
+            <b>Resend</b>: بهترین برای پروداکشن رایگان ·
+            <b>Brevo</b>: SMTP رایگان روزانه ·
+            <b>Mailtrap</b>: فقط تست ·
+            <b>Log</b>: فقط در لاگ سرور
+          </small>
+        </div>
+
+        <div class="field">
+          <label>آدرس فرستنده (From)</label>
+          <input type="email" name="mail_from_address" value="{{ $mailFrom }}" placeholder="noreply@yourdomain.com">
+        </div>
+
+        <div class="field">
+          <label>نام فرستنده</label>
+          <input name="mail_from_name" value="{{ $mailFromName }}" placeholder="FARAST">
+        </div>
+
+        <div class="field secret-field">
+          <label>کلید Resend API</label>
+          <input type="password" name="resend_api_key" placeholder="{{ $hasResendKey ? 'تنظیم شده — برای تغییر وارد کنید' : 're_...' }}" autocomplete="new-password">
+          <small>از <a href="https://resend.com" target="_blank" rel="noopener">resend.com</a> رایگان بگیرید.</small>
+        </div>
+
+        <div class="field secret-field">
+          <label>کلید / رمز Brevo</label>
+          <input type="password" name="brevo_api_key" placeholder="{{ $hasBrevoKey ? 'تنظیم شده — برای تغییر وارد کنید' : 'کلید SMTP Brevo' }}" autocomplete="new-password">
+          <small>از پنل Brevo بخش SMTP & API</small>
+        </div>
+
+        <div class="field">
+          <label>SMTP Host</label>
+          <input name="mail_host" value="{{ $mailHost }}" placeholder="smtp-relay.brevo.com">
+        </div>
+
+        <div class="field">
+          <label>SMTP Port</label>
+          <input type="number" name="mail_port" value="{{ $mailPort }}" min="1">
+        </div>
+
+        <div class="field">
+          <label>SMTP Username</label>
+          <input name="mail_username" value="{{ $mailUsername }}" autocomplete="off">
+        </div>
+
+        <div class="field secret-field">
+          <label>SMTP Password</label>
+          <input type="password" name="mail_password" placeholder="{{ $hasSmtpPassword ? 'تنظیم شده — برای تغییر وارد کنید' : 'رمز SMTP' }}" autocomplete="new-password">
+        </div>
+
+        <div class="field">
+          <label>Encryption</label>
+          <select name="mail_encryption">
+            <option value="tls" @selected(($mailEncryption ?: 'tls') === 'tls')>TLS</option>
+            <option value="ssl" @selected($mailEncryption === 'ssl')>SSL</option>
+            <option value="null" @selected($mailEncryption === '' || $mailEncryption === null)>بدون</option>
+          </select>
+        </div>
+
         <label class="toggle-card">
           <span><i class="fa-solid fa-power-off"></i> فعال بودن کل سیستم ایمیل</span>
           <input type="hidden" name="email_enabled" value="0">
@@ -91,7 +161,7 @@
           <span class="section-icon green-bg"><i class="fa-solid fa-paper-plane"></i></span>
           <div>
             <h2>ارسال ایمیل آزمایشی</h2>
-            <p>برای اطمینان از صحت SMTP و قالب‌ها یک ایمیل تست بفرستید.</p>
+            <p>بعد از ذخیره سرویس‌دهنده، اینجا تست کنید.</p>
           </div>
         </div>
       </div>
@@ -114,7 +184,7 @@
           <span class="section-icon"><i class="fa-solid fa-headset"></i></span>
           <div>
             <h2>پاسخ سریع به تیکت‌ها</h2>
-            <p>پاسخ شما برای کاربر ایمیل می‌شود (در صورت فعال بودن نوع ticket_reply).</p>
+            <p>پاسخ شما برای کاربر ایمیل می‌شود.</p>
           </div>
         </div>
         <span class="count-pill">{{ $tickets->count() }} تیکت اخیر</span>
@@ -168,7 +238,7 @@
               <span class="user-avatar"><i class="fa-solid fa-envelope"></i></span>
               <div>
                 <b>{{ $log->subject }}</b>
-                <small>{{ $log->to_email }} · {{ $types[$log->type] ?? $log->type }}</small>
+                <small>{{ $log->to_email }} · {{ $types[$log->type] ?? $log->type }} · {{ $log->meta['provider'] ?? '-' }}</small>
               </div>
             </div>
             <div class="user-badges">
@@ -180,7 +250,7 @@
             @endif
           </article>
         @empty
-          <div class="empty-admin">هنوز لاگی ثبت نشده است. بعد از اولین ارسال اینجا نمایش داده می‌شود.</div>
+          <div class="empty-admin">هنوز لاگی ثبت نشده است.</div>
         @endforelse
       </div>
     </section>
