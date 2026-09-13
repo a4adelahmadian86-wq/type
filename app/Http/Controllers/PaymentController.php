@@ -13,6 +13,7 @@ use App\Services\FreeQuotaService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class PaymentController extends Controller
 {
@@ -20,11 +21,15 @@ class PaymentController extends Controller
     {
         abort_unless($document->user_id === auth()->id() && $document->status !== 'deleted', 404);
         $request->validate(['accept_terms' => ['accepted']]);
+
         $quote = $pricing->quote((string) $document->content, max(1, (int) $document->page_count));
         $freePages = $free->availablePages(auth()->user(), $this->freePagesSetting());
         $freeApplied = min(1, $freePages, $quote['pages']);
-        [$subtotal, $discount, $tax, $total] = $this->totals($quote, $freeApplied);
+        [$subtotal, $discount, $tax, $gross] = $this->totals($quote, $freeApplied);
+        $depositCredit = $this->paidDepositCredit($document);
+        $total = max(0, $gross - $depositCredit);
         $hash = hash('sha256', (string) $document->content);
+
         $order = Order::create([
             'user_id' => auth()->id(),
             'document_id' => $document->id,
@@ -35,10 +40,13 @@ class PaymentController extends Controller
             'status' => 'pending',
             'content_hash' => $hash,
             'pricing_snapshot' => [
+                'kind' => 'typing_final',
                 'content_hash' => $hash,
                 'quote' => $quote,
                 'tax_rate' => $this->taxRate(),
                 'free_pages_available' => $freePages,
+                'gross_total_rials' => $gross,
+                'deposit_credit_rials' => $depositCredit,
             ],
             'free_pages_applied' => $freeApplied,
             'terms_accepted_at' => now(),
@@ -60,20 +68,28 @@ class PaymentController extends Controller
         abort_unless($order->user_id === auth()->id(), 404);
         $request->validate(['accept_terms' => ['accepted']]);
 
+        if ($order->isDeposit()) {
+            return $this->payDepositWithWallet($request, $order);
+        }
+
         try {
             $paidOrder = null;
 
             DB::transaction(function () use ($order, $pricing, $free, &$paidOrder) {
                 $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
-                if ($locked->isPaid()) {
-                    return;
-                }
+                if ($locked->isPaid()) return;
 
-                $document = TypingDocument::whereKey($locked->document_id)->where('user_id', auth()->id())->lockForUpdate()->firstOrFail();
+                $document = TypingDocument::whereKey($locked->document_id)
+                    ->where('user_id', auth()->id())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $quote = $pricing->quote((string) $document->content, max(1, (int) $document->page_count));
                 $available = $free->availablePages(auth()->user(), $this->freePagesSetting());
                 $freeApplied = min(1, $available, $quote['pages']);
-                [$subtotal, $discount, $tax, $total] = $this->totals($quote, $freeApplied);
+                [$subtotal, $discount, $tax, $gross] = $this->totals($quote, $freeApplied);
+                $depositCredit = $this->paidDepositCredit($document, true);
+                $total = max(0, $gross - $depositCredit);
                 $hash = hash('sha256', (string) $document->content);
 
                 $locked->update([
@@ -84,10 +100,13 @@ class PaymentController extends Controller
                     'free_pages_applied' => $freeApplied,
                     'content_hash' => $hash,
                     'pricing_snapshot' => [
+                        'kind' => 'typing_final',
                         'content_hash' => $hash,
                         'quote' => $quote,
                         'tax_rate' => $this->taxRate(),
                         'free_pages_available' => $available,
+                        'gross_total_rials' => $gross,
+                        'deposit_credit_rials' => $depositCredit,
                     ],
                     'terms_accepted_at' => now(),
                 ]);
@@ -112,7 +131,7 @@ class PaymentController extends Controller
                         'balance_after' => $after,
                         'reference_type' => 'order',
                         'reference_id' => $locked->id,
-                        'description' => 'پرداخت هزینه خروجی سند',
+                        'description' => 'تسویه نهایی خدمات تایپ',
                         'idempotency_key' => 'order-'.$locked->id,
                     ]);
                 }
@@ -131,21 +150,96 @@ class PaymentController extends Controller
                 ]);
 
                 $locked->update(['status' => 'paid', 'paid_at' => now()]);
-                $document->update(['status' => 'paid', 'price_rials' => $total]);
+                $document->update(['status' => 'paid', 'price_rials' => $gross]);
                 $paidOrder = $locked->fresh();
             });
 
             if ($paidOrder) {
-                try {
-                    $emailService->sendOrderPaid(auth()->user(), $paidOrder);
-                } catch (\Throwable) {
-                }
+                try { $emailService->sendOrderPaid(auth()->user(), $paidOrder); } catch (\Throwable) {}
             }
 
             return redirect()->route('editor')->with('status', 'پرداخت با موفقیت ثبت شد؛ اکنون خروجی قابل دریافت است.');
         } catch (\RuntimeException $e) {
             return back()->withErrors(['payment' => $e->getMessage()]);
         }
+    }
+
+    private function payDepositWithWallet(Request $request, Order $order)
+    {
+        try {
+            DB::transaction(function () use ($order, $request) {
+                $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+                if ($locked->status === 'deposit_paid') return;
+                abort_unless($locked->isDeposit() && $locked->status === 'deposit_pending', 409, 'وضعیت بیعانه معتبر نیست.');
+
+                $snapshot = $locked->pricing_snapshot ?: [];
+                $path = (string) ($snapshot['source_path'] ?? '');
+                $hash = (string) ($snapshot['source_hash'] ?? '');
+                abort_unless($path !== '' && Storage::disk('private')->exists($path), 404, 'فایل مربوط به این برآورد پیدا نشد.');
+                abort_unless(hash_equals($hash, hash('sha256', Storage::disk('private')->get($path))), 409, 'فایل پس از برآورد تغییر کرده است.');
+
+                $wallet = Wallet::firstOrCreate(['user_id' => auth()->id()], ['balance_rials' => 0]);
+                $wallet = Wallet::whereKey($wallet->id)->lockForUpdate()->firstOrFail();
+                $amount = (int) $locked->total_rials;
+
+                if ($amount > $wallet->balance_rials) {
+                    throw new \RuntimeException('موجودی کیف پول برای پرداخت این مبلغ کافی نیست.');
+                }
+
+                $before = (int) $wallet->balance_rials;
+                $after = $before - $amount;
+                if ($amount > 0) {
+                    $wallet->update(['balance_rials' => $after]);
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'debit',
+                        'amount_rials' => $amount,
+                        'balance_before' => $before,
+                        'balance_after' => $after,
+                        'reference_type' => 'typing_deposit',
+                        'reference_id' => $locked->id,
+                        'description' => 'پیش‌پرداخت خدمات تایپ',
+                        'idempotency_key' => 'typing-deposit-'.$locked->id,
+                    ]);
+                }
+
+                Payment::create([
+                    'order_id' => $locked->id,
+                    'gateway' => 'wallet',
+                    'amount_rials' => $amount,
+                    'status' => 'paid',
+                    'transaction_id' => 'DEPOSIT-WALLET-'.$locked->id.'-'.now()->timestamp,
+                    'paid_at' => now(),
+                ]);
+
+                $locked->update(['status' => 'deposit_paid', 'paid_at' => now()]);
+                $request->session()->put('typing_preflight_deposit_order', $locked->id);
+                $request->session()->put('typing_preflight_accepted', [
+                    'path' => $path,
+                    'hash' => $hash,
+                    'pages' => (int) ($snapshot['estimated_pages'] ?? 1),
+                    'accepted_at' => now()->toIso8601String(),
+                    'deposit_order_id' => $locked->id,
+                ]);
+            });
+
+            return redirect()->route('editor')->with('status', 'پیش‌پرداخت ثبت شد؛ فایل آماده ورود به ویرایشگر است.');
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['payment' => $e->getMessage()]);
+        }
+    }
+
+    private function paidDepositCredit(TypingDocument $document, bool $lock = false): int
+    {
+        $query = Order::where('user_id', $document->user_id)
+            ->where('document_id', $document->id)
+            ->where('status', 'deposit_paid');
+        if ($lock) $query->lockForUpdate();
+
+        return $query->get()->sum(function (Order $order) {
+            if (! $order->isDeposit()) return 0;
+            return max(0, (int) ($order->pricing_snapshot['deposit_credit_rials'] ?? $order->total_rials));
+        });
     }
 
     private function totals(array $quote, int $freeApplied): array
