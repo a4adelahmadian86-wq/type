@@ -4,6 +4,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorController;
+use App\Http\Controllers\EditorSaveController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
@@ -32,10 +33,8 @@ Route::view('/privacy', 'legal.privacy')->name('privacy');
 
 Route::get('/assets/sounds/{file}', function (string $file) {
     abort_unless(preg_match('/^[0-9]{2}-[a-z0-9-]+\.ogg$/', $file) === 1, 404);
-
     $path = base_path('FARAST-UI-SOUNDS/OGG/'.$file);
     abort_unless(is_file($path), 404);
-
     return response()->file($path, [
         'Content-Type' => 'audio/ogg',
         'Cache-Control' => 'public, max-age=31536000, immutable',
@@ -51,7 +50,6 @@ Route::get('/register', [AuthController::class, 'registerForm'])->name('register
 Route::post('/register', [AuthController::class, 'registerStore'])->middleware('throttle:10,10')->name('register.store');
 Route::post('/login/register/verify', [AuthController::class, 'verifyRegistrationOtp'])->middleware('throttle:10,10')->name('register.otp.verify');
 Route::post('/login/request-otp', [AuthController::class, 'requestOtp'])->middleware('throttle:5,10')->name('login.otp');
-Route::post('/login/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,10')->name('login.verify');
 Route::get('/login/email', [AuthController::class, 'emailLoginForm'])->name('login.email');
 Route::post('/login/email', [AuthController::class, 'requestEmailOtp'])->middleware('throttle:5,10')->name('login.email.request');
 Route::post('/login/email/verify', [AuthController::class, 'verifyEmailOtp'])->middleware('throttle:10,10')->name('login.email.verify');
@@ -79,7 +77,7 @@ Route::get('/editor', [EditorController::class, 'create'])->middleware(['auth', 
 Route::middleware(['auth', 'single.editor'])->group(function () {
     Route::get('/dashboard', [EditorController::class, 'dashboard'])->name('dashboard');
     Route::post('/editor/analyze', [EditorController::class, 'analyze'])->middleware('throttle:20,10')->name('editor.analyze');
-    Route::post('/editor/save', [EditorController::class, 'save'])->middleware('throttle:120,1')->name('editor.save');
+    Route::post('/editor/save', EditorSaveController::class)->middleware('throttle:120,1')->name('editor.save');
     Route::post('/editor/feedback', [EditorController::class, 'feedback'])->middleware('throttle:60,10')->name('editor.feedback');
     Route::post('/editor/voice/transcribe', [VoiceController::class, 'transcribe'])->middleware('throttle:30,10')->name('editor.voice.transcribe');
     Route::post('/editor/export/{format}', [ExportController::class, 'export'])->whereIn('format', ['docx', 'pdf'])->middleware('throttle:10,10')->name('editor.export');
@@ -111,7 +109,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/announcements/{announcement}', [AnnouncementController::class, 'update'])->name('announcements.update');
     Route::post('/announcements/{announcement}/toggle', [AnnouncementController::class, 'toggle'])->name('announcements.toggle');
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy'])->name('announcements.destroy');
-
     Route::get('/emails', [AdminController::class, 'emails'])->name('emails');
     Route::post('/emails/settings', [AdminController::class, 'updateEmailSettings'])->name('emails.settings');
     Route::post('/emails/test', [AdminController::class, 'sendTestEmail'])->name('emails.test');
