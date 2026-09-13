@@ -12,9 +12,13 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo_mysql, dom, zip
+          extensions: mbstring, pdo_mysql, pdo_sqlite, dom, zip
       - run: composer validate --no-check-publish
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: find app config routes database -name '*.php' -print0 | xargs -0 -n1 php -l
       - run: php artisan key:generate --force
-      - run: php artisan route:list --no-ansi
+      - run: mkdir -p database && touch database/ci.sqlite
+        shell: bash
+      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan migrate --force
+      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan route:list --no-ansi
+      - run: DB_CONNECTION=sqlite DB_DATABASE=database/ci.sqlite php artisan view:cache
