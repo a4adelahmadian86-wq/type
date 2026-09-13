@@ -83,7 +83,7 @@ class AuthController extends Controller
         ]);
     }
 
-    public function registerStore(Request $request)
+    public function registerStore(Request $request, EmailService $emailService)
     {
         $phone = $request->session()->get('register.mobile');
         abort_unless($phone && (bool) $request->session()->get('register.verified', false), 403, 'ابتدا شماره موبایل را تأیید کنید.');
@@ -113,6 +113,12 @@ class AuthController extends Controller
             'is_verified' => true,
             'is_blocked' => false,
         ]);
+
+        try {
+            $emailService->sendWelcome($user);
+        } catch (\Throwable) {
+            // ثبت‌نام نباید به خاطر ایمیل شکست بخورد
+        }
 
         $request->session()->forget(['login.phone', 'register.mobile', 'register.verified']);
         Auth::login($user, true);
@@ -169,7 +175,7 @@ class AuthController extends Controller
         EmailOtpChallenge::where('email', $email)->whereNull('consumed_at')->update(['consumed_at' => now()]);
         EmailOtpChallenge::create(['email' => $email, 'code_hash' => Hash::make($code), 'expires_at' => now()->addMinutes(3)]);
         $request->session()->put('email_login.email', $email);
-        $emailService->sendOtp($email, $code);
+        $emailService->sendOtp($email, $code, $user);
 
         return response()->json(['ok' => true, 'message' => 'کد تأیید به ایمیل شما ارسال شد.']);
     }
@@ -270,13 +276,19 @@ class AuthController extends Controller
         return view('auth.reset-password');
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(Request $request, EmailService $emailService)
     {
         $phone = $request->session()->get('password_reset.mobile');
         abort_unless($phone && (bool) $request->session()->get('password_reset.verified', false), 403);
         $data = $request->validate(['password' => ['required', 'string', 'min:8', 'confirmed']]);
         $user = User::where('mobile', $phone)->firstOrFail();
         $user->update(['password' => $data['password']]);
+
+        try {
+            $emailService->sendPasswordChanged($user);
+        } catch (\Throwable) {
+        }
+
         $request->session()->forget(['password_reset.mobile', 'password_reset.verified']);
         Auth::login($user, true);
         $request->session()->regenerate();
