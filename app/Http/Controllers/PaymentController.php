@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\SiteSetting;
+use App\Models\StoreLibraryItem;
 use App\Models\TypingDocument;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
@@ -70,6 +71,10 @@ class PaymentController extends Controller
 
         if ($order->isDeposit()) {
             return $this->payDepositWithWallet($request, $order);
+        }
+
+        if (($order->pricing_snapshot['kind'] ?? null) === 'store') {
+            return $this->payStoreOrderWithWallet($order, $emailService);
         }
 
         try {
@@ -159,6 +164,127 @@ class PaymentController extends Controller
             }
 
             return redirect()->route('editor')->with('status', 'پرداخت با موفقیت ثبت شد؛ اکنون خروجی قابل دریافت است.');
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['payment' => $e->getMessage()]);
+        }
+    }
+
+    private function payStoreOrderWithWallet(Order $order, EmailService $emailService)
+    {
+        try {
+            $paidOrder = null;
+
+            DB::transaction(function () use ($order, &$paidOrder) {
+                $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+                if ($locked->isPaid()) {
+                    $paidOrder = $locked->fresh();
+                    return;
+                }
+
+                $items = $locked->storeItems()->with(['product.files'])->lockForUpdate()->get();
+                if ($items->isEmpty()) {
+                    throw new \RuntimeException('سفارش فروشگاه فاقد محصول است.');
+                }
+
+                $subtotal = 0;
+                $validatedItems = [];
+                foreach ($items as $item) {
+                    $product = $item->product;
+                    if (! $product || $product->status !== 'published') {
+                        throw new \RuntimeException('یکی از محصولات دیگر قابل خرید نیست.');
+                    }
+                    $file = $product->files->firstWhere('is_primary', true) ?: $product->files->firstWhere('is_active', true);
+                    if (! $file || ! $file->is_active) {
+                        throw new \RuntimeException('فایل محصول برای تحویل آماده نیست.');
+                    }
+
+                    $unit = max(0, (int) $product->price_rials);
+                    $line = $unit * max(1, (int) $item->quantity);
+                    $subtotal += $line;
+                    $validatedItems[] = [$item, $product, $file, $unit, $line];
+                }
+
+                $taxRate = max(0, (float) SiteSetting::read('tax_rate_percent', 10));
+                $taxEnabled = filter_var(SiteSetting::read('tax_enabled', true), FILTER_VALIDATE_BOOLEAN);
+                $tax = $taxEnabled ? (int) round($subtotal * $taxRate / 100) : 0;
+                $total = $subtotal + $tax;
+
+                $locked->update([
+                    'subtotal_rials' => $subtotal,
+                    'discount_rials' => 0,
+                    'tax_rials' => $tax,
+                    'total_rials' => $total,
+                    'pricing_snapshot' => [
+                        'kind' => 'store',
+                        'tax_rate' => $taxRate,
+                        'items' => collect($validatedItems)->map(fn ($row) => [
+                            'product_id' => $row[1]->id,
+                            'title' => $row[1]->title,
+                            'sku' => $row[1]->sku,
+                            'quantity' => $row[0]->quantity,
+                            'unit_price_rials' => $row[3],
+                            'line_total_rials' => $row[4],
+                            'file_id' => $row[2]->id,
+                            'file_sha256' => $row[2]->sha256,
+                        ])->values()->all(),
+                    ],
+                    'terms_accepted_at' => now(),
+                ]);
+
+                $wallet = Wallet::firstOrCreate(['user_id' => auth()->id()], ['balance_rials' => 0]);
+                $wallet = Wallet::whereKey($wallet->id)->lockForUpdate()->firstOrFail();
+                if ($total > $wallet->balance_rials) {
+                    throw new \RuntimeException('موجودی کیف پول برای این سفارش کافی نیست.');
+                }
+
+                $before = (int) $wallet->balance_rials;
+                $after = $before - $total;
+                if ($total > 0) {
+                    $wallet->update(['balance_rials' => $after]);
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'debit',
+                        'amount_rials' => $total,
+                        'balance_before' => $before,
+                        'balance_after' => $after,
+                        'reference_type' => 'store_order',
+                        'reference_id' => $locked->id,
+                        'description' => 'خرید فایل دیجیتال',
+                        'idempotency_key' => 'store-order-'.$locked->id,
+                    ]);
+                }
+
+                Payment::create([
+                    'order_id' => $locked->id,
+                    'gateway' => 'wallet',
+                    'amount_rials' => $total,
+                    'status' => 'paid',
+                    'transaction_id' => 'STORE-WALLET-'.$locked->id.'-'.now()->timestamp,
+                    'paid_at' => now(),
+                ]);
+
+                foreach ($validatedItems as [$item, $product, $file]) {
+                    StoreLibraryItem::firstOrCreate(
+                        ['user_id' => auth()->id(), 'product_id' => $product->id, 'order_id' => $locked->id],
+                        [
+                            'order_item_id' => $item->id,
+                            'product_file_id' => $file->id,
+                            'license_code' => null,
+                            'granted_at' => now(),
+                            'revoked_at' => null,
+                        ]
+                    );
+                }
+
+                $locked->update(['status' => 'paid', 'paid_at' => now()]);
+                $paidOrder = $locked->fresh();
+            });
+
+            if ($paidOrder) {
+                try { $emailService->sendOrderPaid(auth()->user(), $paidOrder); } catch (\Throwable) {}
+            }
+
+            return redirect()->route('store')->with('status', 'خرید با موفقیت ثبت شد؛ فایل‌ها در کتابخانه شما قرار گرفتند.');
         } catch (\RuntimeException $e) {
             return back()->withErrors(['payment' => $e->getMessage()]);
         }
