@@ -61,7 +61,7 @@ class SupportController extends Controller
     }
 
     /**
-     * پاسخ مدیر به تیکت (از پنل ادمین فراخوانی می‌شود).
+     * پاسخ مدیر به تیکت (از پنل ادمین).
      */
     public function adminReply(Request $request, Ticket $ticket, EmailService $emailService)
     {
@@ -75,19 +75,19 @@ class SupportController extends Controller
         $ticket->messages()->create([
             'user_id' => auth()->id(),
             'body' => $data['body'],
-            'is_staff' => true,
+            'is_internal' => false,
         ]);
 
-        if (! empty($data['status'])) {
-            $ticket->update(['status' => $data['status']]);
-        } else {
-            $ticket->update(['status' => 'answered']);
-        }
+        $ticket->update([
+            'status' => $data['status'] ?? 'answered',
+        ]);
 
         $ticket->touch();
 
         try {
-            $emailService->sendTicketReply($ticket->user, $ticket->fresh(), $data['body']);
+            if ($ticket->user) {
+                $emailService->sendTicketReply($ticket->user, $ticket->fresh(), $data['body']);
+            }
         } catch (\Throwable) {
         }
 
