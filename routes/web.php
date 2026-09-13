@@ -10,6 +10,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
 use App\Http\Controllers\StoreCartController;
 use App\Http\Controllers\StoreController;
+use App\Http\Controllers\StoreLibraryController;
 use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TypingPreflightController;
 use App\Http\Controllers\VoiceController;
@@ -69,6 +70,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/editor/preflight/estimate', [TypingPreflightController::class, 'estimate'])->middleware('throttle:30,10')->name('editor.preflight.estimate');
     Route::post('/editor/preflight/accept', [TypingPreflightController::class, 'accept'])->middleware('throttle:30,10')->name('editor.preflight.accept');
     Route::post('/editor/preflight/decline', [TypingPreflightController::class, 'decline'])->middleware('throttle:30,10')->name('editor.preflight.decline');
+    Route::get('/library', [StoreLibraryController::class, 'index'])->name('library');
+    Route::post('/library/{libraryItem}/download', [StoreLibraryController::class, 'issue'])->middleware('throttle:20,10')->name('library.download.issue');
+    Route::get('/downloads/{download}', [StoreLibraryController::class, 'stream'])->middleware('throttle:60,10')->name('store.download.stream');
 });
 Route::get('/editor', [EditorController::class, 'create'])->middleware(['auth', 'single.editor'])->name('editor');
 Route::middleware(['auth', 'single.editor'])->group(function () {
