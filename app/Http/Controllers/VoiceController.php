@@ -4,13 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\AiInteraction;
 use App\Services\CapabilityService;
-use App\Services\GeminiService;
+use App\Services\VoiceTranscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class VoiceController extends Controller
 {
-    public function transcribe(Request $request, GeminiService $gemini, CapabilityService $capabilities)
+    public function transcribe(Request $request, VoiceTranscriptionService $voice, CapabilityService $capabilities)
     {
         $caps = $capabilities->forUser($request->user());
         abort_unless(($caps['active'] ?? false) && ($caps['can_voice'] ?? false), 403, 'تایپ صوتی برای این حساب فعال نیست.');
@@ -34,7 +34,7 @@ class VoiceController extends Controller
         $mime = $file->getMimeType() ?: $file->getClientMimeType() ?: 'audio/webm';
 
         try {
-            $result = $gemini->transcribeVoice($mime, $bytes, $data['locale'], [
+            $result = $voice->transcribe($mime, $bytes, $data['locale'], [
                 'user_id' => $request->user()->id,
                 'input_bytes' => strlen($bytes),
             ]);
