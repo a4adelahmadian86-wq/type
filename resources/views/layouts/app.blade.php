@@ -43,6 +43,7 @@ if (!$isEditor && !$isAdmin) {
 <link rel="stylesheet" href="/css/word-editor-overrides.css">
 <link rel="stylesheet" href="/css/editor-pro.css">
 <link rel="stylesheet" href="/css/editor-workspace.css">
+<link rel="stylesheet" href="/css/editor-final-polish.css?v=20260914">
 @endif
 @if ($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
 @if ($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
@@ -82,7 +83,7 @@ if (!$isEditor && !$isAdmin) {
 <script src="/js/farast-tab-lock.js"></script><script src="/js/farast.js"></script><script src="/js/farast-sound.js"></script>
 @if (!$isAdmin)<script src="/js/farast-app.js"></script>@endif
 @if ($isEditor)
-<script src="/js/editor-polish.js"></script><script src="/js/editor-payment.js"></script><script src="/js/editor-redesign.js"></script><script src="/js/editor-redesign-guard.js"></script><script src="/js/editor-tools-patch.js"></script>
+<script src="/js/editor-polish.js?v=20260914"></script><script src="/js/editor-payment.js?v=20260914"></script><script src="/js/editor-redesign.js?v=20260914"></script><script src="/js/editor-redesign-guard.js?v=20260914"></script><script src="/js/editor-tools-patch.js?v=20260914"></script><script src="/js/editor-final-polish.js?v=20260914"></script>
 @endif
 @stack('scripts')
 <script>document.documentElement.classList.add('js-ready');</script>
