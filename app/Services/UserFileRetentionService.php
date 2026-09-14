@@ -30,23 +30,20 @@ class UserFileRetentionService
 
     private function archive(UserFile $file): bool
     {
+        if (! class_exists('ZipArchive')) return false;
         $source = Storage::disk($file->disk ?: 'private');
         if (! $source->exists($file->path)) return false;
         $contents = $source->get($file->path);
-        $remoteName = 'archive/'.auth()->id().'/'.Str::uuid().'-'.preg_replace('/[^A-Za-z0-9._-]+/u', '_', $file->original_name).'.zip';
+        $remoteName = 'archive/'.$file->user_id.'/'.Str::uuid().'-'.preg_replace('/[^A-Za-z0-9._-]+/u', '_', $file->original_name).'.zip';
         $remote = Storage::disk('farast_remote');
         if (! $remote->put($remoteName, $this->zipBytes($file->original_name, $contents))) return false;
-        $file->update([
-            'status' => 'remote', 'remote_path' => $remoteName, 'transferred_at' => now(),
-            'remote_expires_at' => now()->addDays(90),
-        ]);
+        $file->update(['status' => 'remote', 'remote_path' => $remoteName, 'transferred_at' => now(), 'remote_expires_at' => now()->addDays(90)]);
         $source->delete($file->path);
         return true;
     }
 
     private function zipBytes(string $name, string $contents): string
     {
-        if (! class_exists('ZipArchive')) return gzencode($contents, 6);
         $tmp = tempnam(sys_get_temp_dir(), 'farast-archive');
         $zip = new \ZipArchive();
         if ($zip->open($tmp, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) throw new \RuntimeException('archive_failed');
