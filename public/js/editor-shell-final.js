@@ -5,9 +5,6 @@ ready(()=>{
  const app=document.getElementById('farastWord');if(!app)return;
  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
  app.dataset.shell='final';
-
- /* Final runtime layer: loaded after every legacy editor script so the frame stays
-    stable across Chrome/Edge/Firefox/Safari and older engines without :has(). */
  const style=document.createElement('style');
  style.id='farast-editor-shell-final-runtime';
  style.textContent=`
@@ -39,64 +36,25 @@ ready(()=>{
   #farastWord[data-shell-size="compact"] .word-tab{min-width:auto!important;padding-inline:10px!important}
  `;
  document.head.appendChild(style);
-
  const viewport=$('#pagesViewport',app)||$('.pages-viewport',app);
  const getSize=()=>innerWidth<=820?'compact':innerWidth<=1180?'medium':'wide';
  const toolPriority=new Set(['paste','cut','copy','fontName','fontSize','bold','italic','underline','fontColor','highlight','bullets','numbering','alignRight','alignCenter','alignLeft','justify','lineSpacing','find','replace','voice','fileTyping','margins','orientation','size','table','picture','link']);
- let popover=null;
+ let popover=null,scheduled=false;
  const closePopover=()=>{popover?.remove();popover=null};
-
- const ensureMoreButton=group=>{
-  let more=$('.farast-ribbon-more',group);if(more)return more;
-  more=document.createElement('button');more.type='button';more.className='farast-ribbon-more';more.title='ابزارهای بیشتر';more.setAttribute('aria-label','ابزارهای بیشتر');more.innerHTML='<i class="fa-solid fa-ellipsis"></i>';group.appendChild(more);
-  more.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openGroupMenu(group,more)});
-  return more;
- };
+ const ensureMoreButton=group=>{let more=$('.farast-ribbon-more',group);if(more)return more;more=document.createElement('button');more.type='button';more.className='farast-ribbon-more';more.title='ابزارهای بیشتر';more.setAttribute('aria-label','ابزارهای بیشتر');more.innerHTML='<i class="fa-solid fa-ellipsis"></i>';group.appendChild(more);more.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();openGroupMenu(group,more)});return more};
  const visibleText=button=>button.dataset.tip||button.getAttribute('aria-label')||button.title||button.textContent.trim()||'ابزار';
- const openGroupMenu=(group,anchor)=>{
-  closePopover();const hidden=$$('.word-tool.farast-shell-overflow',group);if(!hidden.length)return;
-  popover=document.createElement('div');popover.className='farast-ribbon-popover';
-  const title=document.createElement('div');title.className='farast-ribbon-pop-title';title.textContent=group.dataset.group||'ابزارهای بیشتر';popover.appendChild(title);
-  hidden.forEach(original=>{const b=document.createElement('button');b.type='button';const i=original.querySelector('i');if(i)b.innerHTML='<i class="'+i.className+'"></i><span></span>';else b.innerHTML='<i class="fa-solid fa-circle-dot"></i><span></span>';b.querySelector('span').textContent=visibleText(original);b.addEventListener('click',()=>{closePopover();original.click()});popover.appendChild(b)});
-  document.body.appendChild(popover);const r=anchor.getBoundingClientRect(),w=popover.offsetWidth,h=popover.offsetHeight;let left=Math.max(8,Math.min(innerWidth-w-8,r.right-w));let top=r.bottom+6;if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);popover.style.left=left+'px';popover.style.top=top+'px';
- };
-
- const rebalanceGroup=(group,size)=>{
-  const tools=$$('.word-tool',group).filter(b=>!b.classList.contains('farast-ribbon-more'));
-  tools.forEach(b=>b.classList.remove('farast-shell-overflow'));group.classList.remove('has-farast-overflow');
-  if(size==='wide'||tools.length<=5)return;
-  const keep=size==='compact'?5:8;
-  const ranked=[...tools].sort((a,b)=>{
-   const ap=toolPriority.has(a.dataset.action||a.id)?0:1,bp=toolPriority.has(b.dataset.action||b.id)?0:1;return ap-bp||tools.indexOf(a)-tools.indexOf(b)
-  });
-  const keepSet=new Set(ranked.slice(0,keep));tools.forEach(t=>{if(!keepSet.has(t))t.classList.add('farast-shell-overflow')});
-  if(tools.some(t=>t.classList.contains('farast-shell-overflow'))){group.classList.add('has-farast-overflow');ensureMoreButton(group)}
- };
- const layout=()=>{
-  const size=getSize();app.dataset.shellSize=size;$$('.ribbon-group',app).forEach(g=>rebalanceGroup(g,size));closePopover();
- };
-
- /* Keep scroll ownership deterministic after other scripts mutate styles. */
- const normalizeScroll=()=>{
-  if(!viewport)return;viewport.style.overflowY='auto';viewport.style.overflowX='auto';viewport.style.height='100%';viewport.style.minHeight='0';
- };
- normalizeScroll();layout();
- const observer=new MutationObserver(()=>requestAnimationFrame(()=>{normalizeScroll();layout()}));
- observer.observe(app,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style']});
- if(window.ResizeObserver)new ResizeObserver(()=>layout()).observe(app);else window.addEventListener('resize',layout,{passive:true});
- window.addEventListener('resize',layout,{passive:true});
+ const openGroupMenu=(group,anchor)=>{closePopover();const hidden=$$('.word-tool.farast-shell-overflow',group);if(!hidden.length)return;popover=document.createElement('div');popover.className='farast-ribbon-popover';const title=document.createElement('div');title.className='farast-ribbon-pop-title';title.textContent=group.dataset.group||'ابزارهای بیشتر';popover.appendChild(title);hidden.forEach(original=>{const b=document.createElement('button');b.type='button';const i=original.querySelector('i');b.innerHTML=i?'<i class="'+i.className+'"></i><span></span>':'<i class="fa-solid fa-circle-dot"></i><span></span>';b.querySelector('span').textContent=visibleText(original);b.addEventListener('click',()=>{closePopover();original.click()});popover.appendChild(b)});document.body.appendChild(popover);const r=anchor.getBoundingClientRect(),w=popover.offsetWidth,h=popover.offsetHeight;const left=Math.max(8,Math.min(innerWidth-w-8,r.right-w));let top=r.bottom+6;if(top+h>innerHeight-8)top=Math.max(8,r.top-h-6);popover.style.left=left+'px';popover.style.top=top+'px'};
+ const rebalanceGroup=(group,size)=>{const tools=$$('.word-tool',group).filter(b=>!b.classList.contains('farast-ribbon-more'));tools.forEach(b=>b.classList.remove('farast-shell-overflow'));group.classList.remove('has-farast-overflow');if(size==='wide'||tools.length<=5)return;const keep=size==='compact'?5:8;const ranked=[...tools].sort((a,b)=>{const ap=toolPriority.has(a.dataset.action||a.id)?0:1,bp=toolPriority.has(b.dataset.action||b.id)?0:1;return ap-bp||tools.indexOf(a)-tools.indexOf(b)});const keepSet=new Set(ranked.slice(0,keep));tools.forEach(t=>{if(!keepSet.has(t))t.classList.add('farast-shell-overflow')});if(tools.some(t=>t.classList.contains('farast-shell-overflow'))){group.classList.add('has-farast-overflow');ensureMoreButton(group)}};
+ const normalizeScroll=()=>{if(!viewport)return;viewport.style.overflowY='auto';viewport.style.overflowX='auto';viewport.style.height='100%';viewport.style.minHeight='0'};
+ const layout=()=>{scheduled=false;normalizeScroll();const size=getSize();app.dataset.shellSize=size;$$('.ribbon-group',app).forEach(g=>rebalanceGroup(g,size));closePopover()};
+ const scheduleLayout=()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(layout)};
+ layout();
+ const observer=new MutationObserver(scheduleLayout);observer.observe(app,{childList:true,subtree:true});
+ if(window.ResizeObserver)new ResizeObserver(scheduleLayout).observe(app);else window.addEventListener('resize',scheduleLayout,{passive:true});
+ window.addEventListener('resize',scheduleLayout,{passive:true});
  document.addEventListener('click',e=>{if(popover&&!popover.contains(e.target)&&!e.target.closest('.farast-ribbon-more'))closePopover()});
  document.addEventListener('keydown',e=>{if(e.key==='Escape')closePopover()});
- $$('.word-tab',app).forEach(tab=>tab.addEventListener('click',()=>requestAnimationFrame(()=>{layout();normalizeScroll()})));
-
- /* Native page navigation: Home/End/PageUp/PageDown should move the document canvas,
-    not the outer page, when focus is inside the editor shell. */
- app.addEventListener('keydown',e=>{
-  if(!viewport||e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey)return;
-  if(e.key==='PageDown'){e.preventDefault();viewport.scrollBy({top:Math.max(280,viewport.clientHeight*.82),behavior:'auto'})}
-  else if(e.key==='PageUp'){e.preventDefault();viewport.scrollBy({top:-Math.max(280,viewport.clientHeight*.82),behavior:'auto'})}
-  else if(e.key==='Home'&&!e.shiftKey&&document.activeElement===app){e.preventDefault();viewport.scrollTop=0}
-  else if(e.key==='End'&&!e.shiftKey&&document.activeElement===app){e.preventDefault();viewport.scrollTop=viewport.scrollHeight}
- },true);
+ $$('.word-tab',app).forEach(tab=>tab.addEventListener('click',scheduleLayout));
+ app.addEventListener('keydown',e=>{if(!viewport||e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey)return;if(e.key==='PageDown'){e.preventDefault();viewport.scrollBy({top:Math.max(280,viewport.clientHeight*.82),behavior:'auto'})}else if(e.key==='PageUp'){e.preventDefault();viewport.scrollBy({top:-Math.max(280,viewport.clientHeight*.82),behavior:'auto'})}},true);
 });
 })();
