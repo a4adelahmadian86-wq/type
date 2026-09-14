@@ -1,0 +1,14 @@
+/* FARAST editor scroll contract: one natural document scroll owner. */
+.editor-page-body{overflow:hidden!important}
+#app-main:has(#farastWord){height:100dvh!important;min-height:0!important;overflow:hidden!important}
+.word-app{height:100dvh!important;min-height:520px!important;overflow:hidden!important}
+.word-body{min-height:0!important;height:auto!important;overflow:hidden!important;display:flex!important}
+.document-area{min-height:0!important;height:100%!important;overflow:hidden!important;display:flex!important;flex:1 1 auto!important;flex-direction:column!important}
+.pages-viewport{min-height:0!important;height:auto!important;flex:1 1 auto!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;touch-action:pan-y!important;scroll-behavior:auto!important;padding-bottom:40px!important}
+.pages-viewport{scrollbar-width:auto!important;scrollbar-color:auto!important}
+.pages-viewport::-webkit-scrollbar{width:auto!important;height:auto!important}
+.pages-viewport::-webkit-scrollbar-track,.pages-viewport::-webkit-scrollbar-thumb{background:initial!important;border:initial!important;border-radius:initial!important}
+.word-page{overflow:visible!important;height:auto!important;min-height:297mm!important;margin-left:auto!important;margin-right:auto!important}
+.word-page #editor,.word-page .editor-content{overflow:visible!important;max-height:none!important}
+.word-titlebar,.word-tabs,.ribbon,.word-status,.word-statusbar{position:relative!important;flex:none!important}
+@media(max-width:760px){.pages-viewport{padding:12px 8px 32px!important}.word-page{width:min(210mm,calc(100vw - 20px))!important}.word-page #editor,.word-page .editor-content{padding:18mm!important}}
