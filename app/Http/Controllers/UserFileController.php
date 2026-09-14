@@ -38,6 +38,34 @@ class UserFileController extends Controller
         return response()->json(['ok' => true, 'file' => $this->present($record), 'estimate' => $quote]);
     }
 
+    public function select(UserFile $file, Request $request)
+    {
+        abort_unless($file->user_id === $request->user()->id, 403);
+        abort_unless(Storage::disk($file->disk ?: 'private')->exists($file->path), 404, 'فایل در فضای نگهداری موجود نیست.');
+
+        $bytes = Storage::disk($file->disk ?: 'private')->get($file->path);
+        $sourcePath = 'typing/'.$request->user()->id.'/'.Str::uuid().'-'.basename($file->path);
+        Storage::disk('private')->put($sourcePath, $bytes);
+
+        $pending = [
+            'path' => $sourcePath,
+            'mime' => $file->mime,
+            'name' => $file->original_name,
+            'user_file_id' => $file->id,
+            'source_hash' => hash('sha256', $bytes),
+        ];
+        $request->session()->put('pending_upload', $pending);
+        $request->session()->forget(['typing_preflight_quote', 'typing_preflight_accepted', 'typing_preflight_deposit_order']);
+
+        return response()->json([
+            'ok' => true,
+            'file' => $this->present($file),
+            'path' => $sourcePath,
+            'mime' => $file->mime,
+            'name' => $file->original_name,
+        ]);
+    }
+
     public function destroy(UserFile $file)
     {
         abort_unless($file->user_id === auth()->id(), 403);
@@ -74,27 +102,20 @@ class UserFileController extends Controller
             $count = preg_match_all('/\/Type\s*\/Page\b/u', $bytes, $m) ?: 0;
             return max(1, $count);
         }
-        if (in_array($mime, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'], true)) {
-            if (class_exists('ZipArchive')) {
-                $tmp = tempnam(sys_get_temp_dir(), 'farast-doc');
-                file_put_contents($tmp, $bytes);
-                $zip = new \ZipArchive();
-                $pages = 1;
-                if ($zip->open($tmp) === true) {
-                    $xml = $zip->getFromName('word/document.xml') ?: '';
-                    $words = preg_match_all('/[\p{L}\p{N}]+/u', strip_tags($xml), $m) ?: 0;
-                    $pages = max(1, (int) ceil($words / 500));
-                    $zip->close();
-                }
-                @unlink($tmp);
-                return $pages;
+        if (in_array($mime, ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'], true) && class_exists('ZipArchive')) {
+            $tmp = tempnam(sys_get_temp_dir(), 'farast-doc');
+            file_put_contents($tmp, $bytes);
+            $zip = new \ZipArchive();
+            $pages = 1;
+            if ($zip->open($tmp) === true) {
+                $xml = $zip->getFromName('word/document.xml') ?: '';
+                $words = preg_match_all('/[\p{L}\p{N}]+/u', strip_tags($xml), $m) ?: 0;
+                $pages = max(1, (int) ceil($words / 500));
+                $zip->close();
             }
+            @unlink($tmp);
+            return $pages;
         }
-        return max(1, (int) ceil(($this->imagePageHint($mime, $bytes) ?: 1)));
-    }
-
-    private function imagePageHint(?string $mime, string $bytes): int
-    {
-        return str_starts_with((string) $mime, 'image/') ? 1 : 1;
+        return 1;
     }
 }
