@@ -1,0 +1,31 @@
+(()=>{
+'use strict';
+const ready=fn=>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',fn,{once:true}):fn();
+const csrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+const fmt=n=>new Intl.NumberFormat('fa-IR').format(n||0);
+const icon=m=>m?.includes('pdf')?'fa-file-pdf':m?.includes('word')||m?.includes('doc')?'fa-file-word':m?.startsWith('image/')?'fa-file-image':m?.includes('zip')?'fa-file-zipper':'fa-file';
+ready(()=>{
+ let modal, list, search, input, drop, files=[];
+ const build=()=>{
+  if(modal)return;
+  modal=document.createElement('div'); modal.id='farast-file-picker'; modal.setAttribute('aria-hidden','true');
+  modal.innerHTML=`<section class="farast-file-modal" role="dialog" aria-modal="true" aria-labelledby="farast-file-title"><header class="farast-file-head"><div><div id="farast-file-title" class="farast-file-title">فایل‌های من</div><div class="farast-file-sub">انتخاب فایل برای تایپ و پردازش</div></div><button type="button" class="farast-file-close" aria-label="بستن">×</button></header><div class="farast-file-toolbar"><input class="farast-file-search" type="search" placeholder="جستجوی فایل..." aria-label="جستجوی فایل"><button type="button" class="farast-file-library"><i class="fa-solid fa-book-open"></i> کتابخانه</button></div><label class="farast-file-drop"><input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,.zip,.doc,.docx"><span><strong><i class="fa-solid fa-cloud-arrow-up"></i> فایل را اینجا بکشید</strong><small>یا برای انتخاب فایل از دستگاه کلیک کنید</small></span></label><div class="farast-file-list"></div><footer class="farast-file-foot">فایل‌های جدید ابتدا روی فضای داخلی نگهداری می‌شوند؛ سیاست انتقال و حذف توسط سامانه نگهداری فایل اعمال می‌شود.</footer></section>`;
+  document.body.appendChild(modal); list=modal.querySelector('.farast-file-list'); search=modal.querySelector('.farast-file-search'); input=modal.querySelector('input[type=file]'); drop=modal.querySelector('.farast-file-drop');
+  modal.querySelector('.farast-file-close').onclick=close; modal.addEventListener('click',e=>{if(e.target===modal)close()}); search.oninput=render; input.onchange=e=>upload(e.target.files?.[0]);
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('is-drag')})); ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('is-drag')})); drop.addEventListener('drop',e=>upload(e.dataTransfer.files?.[0]));
+  modal.querySelector('.farast-file-library').onclick=()=>window.open('/library','_self');
+ };
+ const open=async()=>{build();modal.classList.add('is-open');modal.setAttribute('aria-hidden','false');await load();setTimeout(()=>search?.focus(),30)};
+ const close=()=>{if(!modal)return;modal.classList.remove('is-open');modal.setAttribute('aria-hidden','true')};
+ const load=async()=>{try{const r=await fetch('/editor/files',{headers:{Accept:'application/json'},credentials:'same-origin'});const j=await r.json();files=j.files||[];render()}catch(e){list.innerHTML='<div class="farast-file-empty">بارگذاری فهرست فایل‌ها انجام نشد.</div>'}};
+ const render=()=>{if(!list)return;const q=(search?.value||'').trim().toLowerCase();const rows=files.filter(f=>!q||String(f.name).toLowerCase().includes(q));if(!rows.length){list.innerHTML='<div class="farast-file-empty"><i class="fa-regular fa-folder-open"></i><br>هنوز فایلی در پروژه ندارید.<br><small>فایل را اینجا بکشید یا از بخش انتخاب فایل استفاده کنید.</small></div>';return}list.innerHTML=rows.map(f=>`<div class="farast-file-row"><div class="farast-file-icon"><i class="fa-solid ${icon(f.mime)}"></i></div><div class="farast-file-name"><strong title="${esc(f.name)}">${esc(f.name)}</strong><small>${esc(f.status==='local'?'روی فضای داخلی':'بایگانی خارجی')}</small></div><div class="farast-file-meta">${esc(f.size)}</div><div class="farast-file-meta">${fmt(f.pages)} صفحه</div><div class="farast-file-price">${esc(f.estimated_price)}</div><button class="farast-file-select" data-id="${f.id}">انتخاب</button><button class="farast-file-remove" data-remove="${f.id}" title="حذف"><i class="fa-regular fa-trash-can"></i></button></div>`).join('');list.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>select(Number(b.dataset.id)));list.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>remove(Number(b.dataset.remove)))};
+ const upload=async(file)=>{if(!file)return;const fd=new FormData();fd.append('file',file);list.innerHTML='<div class="farast-file-empty">در حال بارگذاری و محاسبه تعداد صفحات و قیمت...</div>';try{const r=await fetch('/editor/files',{method:'POST',body:fd,headers:{'X-CSRF-TOKEN':csrf(),Accept:'application/json'},credentials:'same-origin'});const j=await r.json();if(!r.ok)throw new Error(j.message||'upload');await load()}catch(e){list.innerHTML='<div class="farast-file-empty">بارگذاری فایل انجام نشد. نوع یا حجم فایل را بررسی کنید.</div>'}};
+ const select=id=>{const f=files.find(x=>x.id===id);if(!f)return;window.dispatchEvent(new CustomEvent('farast:file-selected',{detail:f}));close();};
+ const remove=async id=>{if(!confirm('این فایل از فایل‌های پروژه حذف شود؟'))return;const r=await fetch('/editor/files/'+id,{method:'DELETE',headers:{'X-CSRF-TOKEN':csrf(),Accept:'application/json'},credentials:'same-origin'});if(r.ok)await load()};
+ document.addEventListener('click',e=>{const b=e.target.closest('.word-tool[data-action="fileTyping"], [data-action="fileTyping"], [data-editor-action="fileTyping"]');if(b){e.preventDefault();e.stopImmediatePropagation();open()}},{capture:true});
+ document.addEventListener('dragover',e=>{if(e.dataTransfer?.types?.includes('Files')){e.preventDefault();build();modal?.classList.add('is-open');modal?.setAttribute('aria-hidden','false');drop?.classList.add('is-drag')}},{capture:true});
+ document.addEventListener('drop',e=>{if(e.dataTransfer?.files?.length){e.preventDefault();build();modal?.classList.add('is-open');modal?.setAttribute('aria-hidden','false');drop?.classList.remove('is-drag');upload(e.dataTransfer.files[0])}},{capture:true});
+ window.FarastFilePicker={open,close,refresh:()=>{build();load()}};
+});
+})();
