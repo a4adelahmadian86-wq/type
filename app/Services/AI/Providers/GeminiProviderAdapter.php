@@ -19,6 +19,11 @@ final class GeminiProviderAdapter implements AiProviderInterface
         return ['text' => true, 'structured_output' => true];
     }
 
+    public function supports(array $operation): bool
+    {
+        return $this->provider->supports($operation);
+    }
+
     public function execute(array $request): AiProviderResult
     {
         $raw = $this->provider->execute(
