@@ -44,16 +44,23 @@ class EditorAiAssistTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_unknown_provider_is_rejected_without_fallback(): void
+    public function test_unknown_provider_is_rejected_without_fallback_and_recorded(): void
     {
         Http::fake();
         $this->actingAs($this->user())->postJson('/editor/ai/assist',[
             'operation'=>'selection.rewrite',
-            'text'=>'متن',
+            'text'=>'متن خصوصی',
             'processing_mode'=>'external',
             'provider'=>'unknown-provider',
         ])->assertUnprocessable()->assertJsonPath('message','ai_provider_not_registered');
         Http::assertNothingSent();
+
+        $interaction = AiInteraction::latest('id')->firstOrFail();
+        $this->assertSame('failed', $interaction->status);
+        $this->assertSame('ai_provider_not_registered', $interaction->error_message);
+        $this->assertSame('unresolved', $interaction->provider);
+        $this->assertSame('pending', $interaction->model);
+        $this->assertStringNotContainsString('متن خصوصی', json_encode($interaction->getAttributes(), JSON_UNESCAPED_UNICODE));
     }
 
     public function test_quota_blocks_before_provider_call(): void
