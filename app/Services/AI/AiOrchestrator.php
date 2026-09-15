@@ -132,6 +132,9 @@ class AiOrchestrator
                 'error_code' => $code,
                 'latency_ms' => $latency,
             ]);
+            if ($e instanceof \InvalidArgumentException) {
+                throw $e;
+            }
             throw new RuntimeException($code, 0, $e);
         }
     }
