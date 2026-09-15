@@ -14,6 +14,11 @@ final class GeminiProviderAdapter implements AiProviderInterface
         return $this->provider->name();
     }
 
+    public function model(): ?string
+    {
+        return $this->provider->model();
+    }
+
     public function capabilities(): array
     {
         return ['text' => true, 'structured_output' => true];
@@ -35,7 +40,7 @@ final class GeminiProviderAdapter implements AiProviderInterface
         return new AiProviderResult(
             result: $raw['result'] ?? [],
             providerRequestId: $raw['provider_interaction_id'] ?? null,
-            model: $this->provider->model(),
+            model: $this->model(),
             usage: $raw['usage'] ?? null,
             metadata: [
                 'http_status' => $raw['http_status'] ?? null,
