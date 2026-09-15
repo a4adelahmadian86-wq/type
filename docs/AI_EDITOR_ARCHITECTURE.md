@@ -18,7 +18,7 @@ Core infrastructure:
 - `AiContextEngine`: allowlisted context and fail-closed large-document handling.
 - `AiPrivacyPolicy`: resolves `automatic|local|server|external`; unsupported modes are rejected rather than silently falling back.
 - `AiQuotaService`: existing capability and daily-request checks.
-- `AiProviderInterface`: common provider adapter contract.
+- `AiProviderInterface`: common provider adapter contract, including provider name/model/capabilities/support/execution.
 - `AiProviderResult`: normalized provider-independent result envelope.
 - `AiProviderRegistry`: deterministic provider registration, capability discovery and operation-aware selection.
 - `GeminiProviderAdapter`: adapts the existing `GeminiEditorProvider`; no second Gemini HTTP implementation was created.
@@ -26,9 +26,9 @@ Core infrastructure:
 
 ## Provider architecture
 
-Providers are selected by the registry, not by controllers. A preferred provider may be supplied explicitly; otherwise the registry selects the first registered provider that declares support for the operation. There is no silent multi-provider fan-out or cross-company fallback.
+Providers are selected by the registry, not by controllers. A preferred provider may be supplied explicitly through the validated optional `provider` request field; otherwise the registry selects the first registered provider that declares support for the operation. An unknown or unsupported explicitly selected provider is rejected and never silently replaced. There is no silent multi-provider fan-out or cross-company fallback.
 
-The existing Gemini implementation remains the actual HTTP client and server-side credential owner. The new adapter only translates its existing contract into `AiProviderResult`.
+The existing Gemini implementation remains the actual HTTP client and server-side credential owner. The new adapter only translates its existing contract into `AiProviderResult` and exposes the configured model before execution so telemetry can be created without nullable/ambiguous model state.
 
 Future providers can implement `AiProviderInterface` without changing the editor controller. Non-text media can use capability-specific sibling contracts when their result semantics differ materially from text generation.
 
@@ -92,12 +92,14 @@ Implemented protections include:
 - provider credentials stay server-side;
 - authenticated/CSRF-protected routes and existing throttles remain in use;
 - capability/quota checks occur before provider execution;
+- explicit provider selection is validated and unknown providers are rejected without fallback;
 - provider bodies are not intentionally persisted in AI failure telemetry;
 - document text is explicitly treated as untrusted data in prompts;
 - structured output schemas are validated before use;
 - formatting actions use an allowlist rather than provider-generated HTML;
 - voice punctuation does not replace editor `innerHTML`;
-- telemetry uses hashes, byte counts, IDs, status and bounded metadata rather than full document text.
+- telemetry uses hashes, byte counts, IDs, status and bounded metadata rather than full document text;
+- privileged account bootstrap is opt-in through deployment environment values; repository-owned fixed administrator phone/password/hash credentials are not used to create an account.
 
 Remaining risks include optional user-supplied feedback text retention, Gemini Files provider-side retention/cleanup, count-based daily quota race conditions, and the need for stronger sanitization/structured transformation if future AI operations begin returning rich HTML.
 
@@ -132,7 +134,7 @@ The current system rejects requests beyond the operation's single-call ceiling r
 
 ## Tests and CI
 
-`tests/Unit/AiCorePolicyTest.php` covers operation aliases, deterministic privacy, context allowlisting, oversized document rejection and common provider-registry selection. Feature tests cover authorization, response compatibility, API-key non-disclosure, no-fallback privacy behavior, quota enforcement and safe provider error persistence.
+`tests/Unit/AiCorePolicyTest.php` covers operation aliases, deterministic privacy, context allowlisting, oversized document rejection and common provider-registry selection. Feature tests cover authorization, response compatibility, model/provider reporting, API-key non-disclosure, explicit unknown-provider rejection without fallback, local-mode no-fallback behavior, quota enforcement, capability blocking, oversized input, safe provider error persistence, malformed provider output, provider connection failure and unvalidated document-ID isolation.
 
 `.github/workflows/ci.yml` validates Composer metadata, PHP/JavaScript syntax, MariaDB/SQLite migrations, routes, Blade compilation and Laravel tests.
 
@@ -151,4 +153,4 @@ Future flow: `prompt -> policy/quota -> provider -> MIME/dimension validation ->
 Prefer local geometry recognition: `strokes -> geometry/features -> primitive -> editable editor object`. External vision should be opt-in for ambiguous cases.
 
 ### Additional providers
-Implement `AiProviderInterface`, declare capabilities, support deterministic operation selection and return `AiProviderResult`. Providers must never receive user content through hidden fan-out or silent fallback.
+Implement `AiProviderInterface`, declare name/model/capabilities, support deterministic operation selection and return `AiProviderResult`. Providers must never receive user content through hidden fan-out or silent fallback.
