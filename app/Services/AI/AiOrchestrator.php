@@ -31,18 +31,20 @@ class AiOrchestrator
 
         $provider = $this->providers->forOperation($operation, $context['provider'] ?? null);
         $requestId = (string) Str::uuid();
-        $model = $provider->model();
-        if ($model === null || $model === '') {
-            throw new RuntimeException('ai_provider_model_unavailable');
-        }
-
+        $providerName = $provider->name();
         $interaction = AiInteraction::create([
-            'user_id'=>$user->id, 'document_id'=>$context['document_id'] ?? null, 'provider'=>$provider->name(), 'model'=>$model,
+            'user_id'=>$user->id, 'document_id'=>$context['document_id'] ?? null, 'provider'=>$providerName, 'model'=>'pending',
             'operation'=>$operation['name'], 'request_id'=>$requestId, 'source_hash'=>hash('sha256',$text), 'input_bytes'=>$payload['transmitted_bytes'], 'status'=>'started',
             'input_meta'=>['scope'=>$payload['scope'],'processing_mode'=>$mode,'cost_class'=>$operation['cost'],'legacy_operation'=>$operation['requested_name'] !== $operation['name'] ? $operation['requested_name'] : null],
         ]);
         $started = hrtime(true);
         try {
+            $model = $provider->model();
+            if ($model === null || $model === '') {
+                throw new RuntimeException('ai_provider_model_unavailable');
+            }
+            $interaction->update(['model'=>$model]);
+
             $normalized = $provider->execute(['operation'=>$operation,'payload'=>$payload,'request_id'=>$requestId]);
             $latency = (int)((hrtime(true)-$started)/1_000_000);
             $result = $normalized->result;
@@ -56,9 +58,9 @@ class AiOrchestrator
                 'status'=>'completed',
                 'output_meta'=>['http_status'=>$normalized->metadata['http_status'] ?? null,'processing_mode'=>$mode,'result_type'=>$operation['result']],
             ]);
-            Log::info('farast.ai.completed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'operation'=>$operation['name'],'provider'=>$provider->name(),'model'=>$resolvedModel,'latency_ms'=>$latency]);
+            Log::info('farast.ai.completed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'operation'=>$operation['name'],'provider'=>$providerName,'model'=>$resolvedModel,'latency_ms'=>$latency]);
             $contract = [
-                'request_id'=>$requestId,'operation'=>$operation['name'],'provider'=>$provider->name(),'model'=>$resolvedModel,'processing_mode'=>$mode,'status'=>'completed',
+                'request_id'=>$requestId,'operation'=>$operation['name'],'provider'=>$providerName,'model'=>$resolvedModel,'processing_mode'=>$mode,'status'=>'completed',
                 'result'=>$result,'suggestions'=>$result['suggestions'] ?? [],'warnings'=>[],'metadata'=>['interaction_id'=>$interaction->id,'context_scope'=>$payload['scope'],'transmitted_bytes'=>$payload['transmitted_bytes'],'cost_class'=>$operation['cost']],
                 'usage'=>$normalized->usage,'error'=>null,
             ];
@@ -67,7 +69,7 @@ class AiOrchestrator
             $latency = (int)((hrtime(true)-$started)/1_000_000);
             $code = preg_match('/^ai_[a-z0-9_]+$/',$e->getMessage()) ? $e->getMessage() : 'ai_provider_failure';
             $interaction->update(['latency_ms'=>$latency,'status'=>'failed','error_message'=>$code,'output_meta'=>['processing_mode'=>$mode,'error_code'=>$code]]);
-            Log::warning('farast.ai.failed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'operation'=>$operation['name'],'provider'=>$provider->name(),'error_code'=>$code,'latency_ms'=>$latency]);
+            Log::warning('farast.ai.failed',['request_id'=>$requestId,'interaction_id'=>$interaction->id,'operation'=>$operation['name'],'provider'=>$providerName,'error_code'=>$code,'latency_ms'=>$latency]);
             throw new RuntimeException($code,0,$e);
         }
     }
