@@ -6,7 +6,7 @@ use App\Services\AI\AiContextEngine;
 use App\Services\AI\AiOperationRegistry;
 use App\Services\AI\AiPrivacyPolicy;
 use Illuminate\Validation\ValidationException;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class AiCorePolicyTest extends TestCase
 {
