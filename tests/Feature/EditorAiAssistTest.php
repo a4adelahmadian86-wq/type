@@ -6,6 +6,7 @@ use App\Models\AiInteraction;
 use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -81,6 +82,15 @@ class EditorAiAssistTest extends TestCase
         Http::fake(fn()=>Http::response(['id'=>'p2','outputs'=>[['type'=>'text','text'=>json_encode(['unexpected'=>'shape'])]]],200));
         $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.punctuation','text'=>'سلام'])->assertStatus(502);
         $this->assertSame('ai_provider_invalid_shape', AiInteraction::latest('id')->firstOrFail()->error_message);
+    }
+
+    public function test_provider_timeout_is_normalized_without_leaking_exception_text(): void
+    {
+        Http::fake(fn()=>throw new ConnectionException('PRIVATE TIMEOUT DETAIL'));
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.punctuation','text'=>'سلام'])->assertStatus(502);
+        $error=(string)AiInteraction::latest('id')->firstOrFail()->error_message;
+        $this->assertSame('ai_provider_failure',$error);
+        $this->assertStringNotContainsString('PRIVATE TIMEOUT DETAIL',$error);
     }
 
     public function test_unvalidated_document_id_is_not_linked_to_telemetry(): void
