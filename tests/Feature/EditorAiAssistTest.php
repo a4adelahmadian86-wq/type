@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AiInteraction;
+use App\Models\SiteSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -21,6 +22,7 @@ class EditorAiAssistTest extends TestCase
 
     public function test_guest_cannot_call_ai(): void
     {
+        Http::fake();
         $this->postJson('/editor/ai/assist', ['operation'=>'selection.punctuation','text'=>'سلام'])->assertUnauthorized();
         Http::assertNothingSent();
     }
@@ -49,7 +51,22 @@ class EditorAiAssistTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_malformed_or_failed_provider_output_is_not_persisted_raw(): void
+    public function test_disabled_ai_capability_blocks_before_provider_call(): void
+    {
+        Http::fake();
+        SiteSetting::write('can_ai', '0');
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.rewrite','text'=>'متن'])->assertForbidden();
+        Http::assertNothingSent();
+    }
+
+    public function test_oversized_operation_input_is_rejected_before_provider_call(): void
+    {
+        Http::fake();
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.rewrite','text'=>str_repeat('ا',20001)])->assertUnprocessable();
+        Http::assertNothingSent();
+    }
+
+    public function test_failed_provider_body_and_private_text_are_not_persisted_raw(): void
     {
         Http::fake(fn()=>Http::response(['error'=>['message'=>'PRIVATE BODY']],500));
         $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.punctuation','text'=>'متن خصوصی'])->assertStatus(502);
@@ -57,6 +74,20 @@ class EditorAiAssistTest extends TestCase
         $this->assertSame('ai_provider_http_500',$error);
         $this->assertStringNotContainsString('PRIVATE BODY',$error);
         $this->assertStringNotContainsString('متن خصوصی',$error);
+    }
+
+    public function test_malformed_provider_output_is_rejected_and_normalized(): void
+    {
+        Http::fake(fn()=>Http::response(['id'=>'p2','outputs'=>[['type'=>'text','text'=>json_encode(['unexpected'=>'shape'])]]],200));
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.punctuation','text'=>'سلام'])->assertStatus(502);
+        $this->assertSame('ai_provider_invalid_shape', AiInteraction::latest('id')->firstOrFail()->error_message);
+    }
+
+    public function test_unvalidated_document_id_is_not_linked_to_telemetry(): void
+    {
+        Http::fake(fn () => Http::response(['id'=>'p3','outputs'=>[['type'=>'text','text'=>json_encode(['text'=>'سلام'], JSON_UNESCAPED_UNICODE)]]],200));
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.punctuation','text'=>'سلام','document_id'=>999])->assertOk();
+        $this->assertNull(AiInteraction::latest('id')->firstOrFail()->document_id);
     }
 
     private function user(): User
