@@ -30,6 +30,26 @@ final class AiProviderRegistry
         return $this->providers[$name];
     }
 
+    /** @param array<string, mixed> $operation */
+    public function forOperation(array $operation, ?string $preferred = null): AiProviderInterface
+    {
+        if ($preferred !== null) {
+            $provider = $this->get($preferred);
+            if (! $provider->supports($operation)) {
+                throw new InvalidArgumentException('ai_provider_operation_unsupported');
+            }
+            return $provider;
+        }
+
+        foreach ($this->providers as $provider) {
+            if ($provider->supports($operation)) {
+                return $provider;
+            }
+        }
+
+        throw new InvalidArgumentException('ai_provider_unavailable');
+    }
+
     /** @return array<string, array<string, mixed>> */
     public function capabilities(): array
     {
