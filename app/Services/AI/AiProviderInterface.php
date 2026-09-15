@@ -6,6 +6,8 @@ interface AiProviderInterface
 {
     public function name(): string;
 
+    public function model(): ?string;
+
     /** @return array<string, mixed> */
     public function capabilities(): array;
 
