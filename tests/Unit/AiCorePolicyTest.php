@@ -5,6 +5,8 @@ namespace Tests\Unit;
 use App\Services\AI\AiContextEngine;
 use App\Services\AI\AiOperationRegistry;
 use App\Services\AI\AiPrivacyPolicy;
+use App\Services\AI\AiProviderRegistry;
+use App\Services\AI\Providers\GeminiEditorProvider;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -38,5 +40,17 @@ class AiCorePolicyTest extends TestCase
         $operation = (new AiOperationRegistry())->resolve('document.summarize');
         $this->expectException(ValidationException::class);
         (new AiContextEngine())->build($operation, str_repeat('ا', 60001));
+    }
+
+    public function test_existing_gemini_is_reached_through_common_provider_registry(): void
+    {
+        $operations = new AiOperationRegistry();
+        $operation = $operations->resolve('selection.proofread');
+        $providers = new AiProviderRegistry(new GeminiEditorProvider());
+        $provider = $providers->forOperation($operation);
+
+        $this->assertSame('gemini', $provider->name());
+        $this->assertTrue($provider->supports($operation));
+        $this->assertTrue($providers->capabilities()['gemini']['text']);
     }
 }

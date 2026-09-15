@@ -2,167 +2,155 @@
 
 Last audited/updated: 2026-09-15
 
-This document describes the code that actually exists in `main`. Status labels are literal: **IMPLEMENTED**, **PARTIALLY IMPLEMENTED**, **PLANNED**, **NOT AVAILABLE**.
+This document describes the architecture actually present on this branch. Status labels are literal: **IMPLEMENTED**, **PARTIALLY IMPLEMENTED**, **PLANNED**, **NOT AVAILABLE**.
 
-## Current implementation
+## Current implementation — IMPLEMENTED
 
-### Text/editor AI — IMPLEMENTED
+The existing `POST /editor/ai/assist` compatibility endpoint remains intact. `EditorAiAssistController` delegates to `EditorAiAssistService`, which uses `AiOrchestrator`.
 
-The existing endpoint `POST /editor/ai/assist` remains the compatibility endpoint. `EditorAiAssistController` is thin and delegates to `EditorAiAssistService`, which is now a compatibility facade over `App\Services\AI\AiOrchestrator`.
+Current flow:
 
-The orchestration path is:
+`request -> operation registry -> quota -> privacy policy -> context engine -> deterministic provider registry -> provider adapter -> normalized result -> safe telemetry`
 
-`request -> operation registry -> quota -> privacy policy -> context engine -> deterministic provider selection -> provider adapter -> normalized result -> safe telemetry`
+Core infrastructure:
 
-Core classes:
+- `AiOperationRegistry`: canonical operations, legacy aliases, scope, input ceiling and cost class.
+- `AiContextEngine`: allowlisted context and fail-closed large-document handling.
+- `AiPrivacyPolicy`: resolves `automatic|local|server|external`; unsupported modes are rejected rather than silently falling back.
+- `AiQuotaService`: existing capability and daily-request checks.
+- `AiProviderInterface`: common provider adapter contract, including provider name/model/capabilities/support/execution.
+- `AiProviderResult`: normalized provider-independent result envelope.
+- `AiProviderRegistry`: deterministic provider registration, capability discovery and operation-aware selection.
+- `GeminiProviderAdapter`: adapts the existing `GeminiEditorProvider`; no second Gemini HTTP implementation was created.
+- `AiOrchestrator`: performs validation/policy checks, provider execution, normalized response construction and privacy-safe telemetry.
 
-- `AiOperationRegistry`: canonical operation names, legacy aliases, input scope, per-operation input ceiling and cost class.
-- `AiContextEngine`: sends only whitelisted context and refuses oversized documents instead of silently truncating them.
-- `AiPrivacyPolicy`: resolves `automatic|local|server|external`. Current server text operations only have an external provider, so explicit `local` or `server` is rejected; it never silently falls back to external.
-- `AiQuotaService`: centralizes existing account capability and daily request checks for editor AI and voice.
-- `AiProvider`: provider contract.
-- `GeminiEditorProvider`: the currently selected external text provider. Gemini keys are read only server-side from `SiteSetting` or `config/services.php`.
-- `AiOrchestrator`: request ID, operation validation, quota/privacy/context checks, provider execution, normalized response and privacy-safe telemetry.
+## Provider architecture
 
-### Operation registry — IMPLEMENTED
+Providers are selected by the registry, not by controllers. A preferred provider may be supplied explicitly through the validated optional `provider` request field; otherwise the registry selects the first registered provider that declares support for the operation. An unknown or unsupported explicitly selected provider is rejected and never silently replaced. There is no silent multi-provider fan-out or cross-company fallback.
 
-Legacy names remain accepted: `selection` -> `selection.format_suggest`, `word` -> `selection.spellcheck`, and `punctuation` -> `selection.punctuation`.
+The existing Gemini implementation remains the actual HTTP client and server-side credential owner. The new adapter only translates its existing contract into `AiProviderResult` and exposes the configured model before execution so telemetry can be created without nullable/ambiguous model state.
 
-Canonical text operations currently executable through Gemini are:
+Future providers can implement `AiProviderInterface` without changing the editor controller. Non-text media can use capability-specific sibling contracts when their result semantics differ materially from text generation.
 
-`selection.format_suggest`, `selection.spellcheck`, `selection.punctuation`, `selection.proofread`, `selection.rewrite`, `selection.paraphrase`, `selection.tone`, `selection.shorten`, `selection.expand`, `selection.summarize`, `selection.explain`, `selection.translate`, `text.generate`, `text.continue`, `text.title`, `text.outline`, `text.keywords`, `document.summarize`, `document.improve`, `document.analyze`.
+## Operation registry — IMPLEMENTED
 
-The existing UI currently invokes only format suggestion, spelling and punctuation. The additional operations are backend-capable extension points and are not claimed as finished UI features.
+Legacy aliases remain compatible: `selection` -> `selection.format_suggest`, `word` -> `selection.spellcheck`, `punctuation` -> `selection.punctuation`.
 
-### Normalized response contract — IMPLEMENTED for editor AI and voice
+Current backend-capable operations include proofreading, spelling, punctuation, rewriting, paraphrasing, tone, shortening, expansion, summarization, explanation, translation, generation, continuation, title, outline, keywords, document summarization/improvement/analysis and formatting suggestions. The current UI exposes only a subset; backend capability is not claimed to mean finished UI.
 
-Editor AI returns existing top-level fields for backward compatibility and also an `ai` object containing request id, canonical operation, provider, model, resolved processing mode, status, result, suggestions, warnings, metadata, usage and error fields. Voice exposes the same conceptual metadata while retaining its existing top-level response fields.
+## Normalized response contract — IMPLEMENTED
 
-### Editor integration and formatting preservation — PARTIALLY IMPLEMENTED
+Editor AI keeps existing top-level response fields for compatibility and additionally exposes an `ai` envelope with request ID, canonical operation, provider, model, processing mode, status, result, suggestions, warnings, metadata, usage and error. Voice follows the same conceptual envelope while retaining its legacy fields.
 
-The real `contenteditable` editor is used; no demo/parallel editor was introduced. The existing selection mini-toolbar still uses a cloned DOM Range for formatting suggestions.
+## Context minimization — IMPLEMENTED
 
-A destructive bug in the previous voice-punctuation flow was removed. Previously punctuation correction replaced the entire editor `innerHTML` with plain paragraphs, destroying rich formatting. The current flow stores the newly inserted voice text node, sends only that new text for punctuation correction, and updates only that text node. Existing bold/italic/links/tables/lists and unrelated document structure are therefore not rebuilt by this operation.
+Only explicitly supported small context fields are transmitted for selection/text operations. An accidentally supplied `whole_document` or unrelated secret field is not forwarded. Document-wide operations must explicitly request document scope. Current oversized document requests fail validation instead of being silently truncated.
 
-Structured per-suggestion proofread data is available from the backend, but a complete accept-one/reject-one/accept-all rich-text suggestion UI is **PLANNED**.
-
-### Context minimization — IMPLEMENTED for current editor API
-
-The context engine accepts only explicitly whitelisted small context fields: sentence context, before/after cursor windows, target language, tone and short instruction. Unknown fields such as an accidentally supplied whole document are not forwarded to the provider.
-
-Document operations require the caller to explicitly choose a `document.*` operation. Documents over the current single-call limit are rejected rather than truncated. Hierarchical chunking/map-reduce/retrieval for large documents is **PLANNED**. No vector database or embedding infrastructure has been added because the current application does not yet require it.
+Hierarchical chunking, section-aware map/reduce and retrieval are **PLANNED**. No vector database or embeddings have been introduced because the current application does not require them.
 
 ## Privacy modes
 
-| Mode | Current behavior |
-|---|---|
-| `local` | **NOT AVAILABLE** for model inference; explicit request is rejected by server endpoints rather than uploaded externally. |
-| `server` | **NOT AVAILABLE** for self-hosted inference; explicit request is rejected rather than routed to Gemini. |
-| `external` | **IMPLEMENTED** for Gemini editor/OCR/voice and Google Cloud Speech when configured. |
-| `automatic` | **IMPLEMENTED** as deterministic policy resolution. It selects only among modes declared available for that operation and never sends the same content to multiple external providers. |
+| Mode | Status | Behavior |
+|---|---|---|
+| `local` | **NOT AVAILABLE** | No local model adapter exists; requests are rejected rather than uploaded externally. |
+| `server` | **NOT AVAILABLE** | No self-hosted inference adapter exists; requests are rejected rather than routed to Gemini. |
+| `external` | **IMPLEMENTED** | Gemini editor AI is server-mediated. Existing OCR/voice external integrations remain separate. |
+| `automatic` | **IMPLEMENTED** | Deterministic policy resolution; it cannot expand context or silently fan out to another provider. |
 
-There is no automatic cross-provider retry. Voice selects Google Cloud Speech only when explicitly configured and compatible with the MIME type; otherwise Gemini is selected before the request. A failure on the selected provider is not silently retried at another company.
+There is no automatic cross-provider retry. A failed selected provider remains a failed request.
+
+## Editor integration — PARTIALLY IMPLEMENTED
+
+The real existing `contenteditable` editor is used; no parallel/demo editor was introduced. Existing voice punctuation was hardened to update only the newly inserted text node instead of rebuilding `innerHTML`, preventing unrelated rich formatting from being destroyed.
+
+Backend proofreading responses contain structured suggestions with original/replacement/reason/category/confidence. Full rich-text accept/reject UI is **PLANNED**. Destructive full-document AI replacement is not introduced.
 
 ## Voice — IMPLEMENTED / PARTIALLY IMPLEMENTED
 
-The real editor records with `MediaRecorder`, uses supported WebM/OGG choices, uploads to `POST /editor/voice/transcribe`, and inserts plain transcript text at the caret.
+The existing editor records audio with `MediaRecorder` and uploads to `POST /editor/voice/transcribe`. Backend validation checks account capability, quota, maximum upload size, MIME type and locale. Current locales include Persian, English and Arabic. Google Cloud Speech is used when configured for a compatible format; otherwise Gemini is used. Provider credentials remain server-side.
 
-Backend validation enforces the account voice capability, daily AI quota, maximum upload size, MIME allowlist and locale allowlist (`fa-IR`, `en-US`, `ar-SA`). Processing mode is explicit/resolved. Engines are Google Cloud Speech when configured for a compatible format, otherwise Gemini.
+Browser-local speech recognition and voice commands for editor actions are **PLANNED**.
 
-Browser-native/local speech recognition is **NOT AVAILABLE** in the current code. Voice commands controlling editor actions are **PLANNED**.
+## OCR — IMPLEMENTED / PARTIALLY IMPLEMENTED
 
-## OCR / document image processing — IMPLEMENTED / PARTIALLY IMPLEMENTED
+The existing `GeminiService` provides OCR for supported images/PDFs/ZIP image collections and uses schema-constrained output. OCR remains separate from language correction.
 
-`GeminiService` remains the existing OCR implementation and was hardened rather than duplicated. It supports images, PDFs and ZIPs containing allowlisted image extensions. Large image/PDF input can use Gemini Files API. The OCR response is schema-constrained into blocks and uncertain words.
+Specialized local OCR, dedicated handwriting OCR, preprocessing and a separate optional post-OCR correction stage are **PLANNED**. Provider-side cleanup/retention for temporary Gemini Files uploads remains an open risk.
 
-Security hardening now treats document content as untrusted data, validates the returned structural shape, stores only normalized error codes rather than raw provider bodies, and removes temporary ZIP files in `finally`.
+## Browser AI — NOT AVAILABLE
 
-Specialized local OCR, dedicated handwriting OCR, preprocessing pipelines and post-OCR grammar correction as a separate optional stage are **PLANNED**. OCR and grammar correction remain separate capabilities.
+No large browser model dependency was added. Candidate technologies include WebGPU, WebAssembly, ONNX Runtime Web and Transformers.js, but none is falsely advertised as active local inference.
 
-## Security and telemetry
+A future local adapter must be lazy-loaded after explicit user action, disclose model download size, cache immutable versions, check browser/GPU/memory capability, support cancellation and declare model licensing. A local failure must never silently transmit the same text externally.
 
-### IMPLEMENTED
+Firefox/WebGPU support, mobile memory, first-load size and Persian model quality must be evaluated per selected model before implementation.
 
-- Gemini/provider credentials stay server-side; no API key is returned to browser code.
-- Existing authenticated web routes, CSRF protection and route throttles are preserved.
-- Capability and quota checks are centralized for editor AI and voice.
-- Provider HTTP bodies are not persisted in the new editor AI, voice or OCR failure paths; normalized error codes are logged instead.
-- Editor/OCR prompts explicitly treat user document content as untrusted data to reduce prompt-injection impact.
-- AI text is returned as JSON. Formatting suggestions use an allowlisted action vocabulary, not provider-generated HTML.
-- Voice punctuation updates a text node, not `innerHTML`.
-- Telemetry stores hashes, byte counts, operation/provider/model/status/latency and bounded metadata; it does not intentionally store full editor prompt/output text.
+## Security — IMPLEMENTED / REMAINING HARDENING
 
-### Remaining risks / limitations
+Implemented protections include:
 
-- `ai_feedback` intentionally supports optional original/corrected text supplied by users; this is product data, not background telemetry, and needs a retention policy.
-- Existing OCR Files API uploads have no implemented provider-side deletion/retention cleanup in this repository.
-- The daily request quota is count-based and has a small concurrent-request race because there is no atomic daily usage counter. Route throttling limits abuse but does not make quota accounting transactionally exact.
-- Full rich-text AI replacement/diff application is not implemented; only safe current operations are wired into the UI.
-- No URL-fetching AI tool exists, so SSRF is not introduced by this AI layer. Future URL-capable vision/web tools require strict allowlists and egress controls.
+- provider credentials stay server-side;
+- authenticated/CSRF-protected routes and existing throttles remain in use;
+- capability/quota checks occur before provider execution;
+- explicit provider selection is validated and unknown providers are rejected without fallback;
+- provider bodies are not intentionally persisted in AI failure telemetry;
+- document text is explicitly treated as untrusted data in prompts;
+- structured output schemas are validated before use;
+- formatting actions use an allowlist rather than provider-generated HTML;
+- voice punctuation does not replace editor `innerHTML`;
+- telemetry uses hashes, byte counts, IDs, status and bounded metadata rather than full document text;
+- privileged account bootstrap is opt-in through deployment environment values; repository-owned fixed administrator phone/password/hash credentials are not used to create an account.
 
-## Browser-side AI evaluation
+Remaining risks include optional user-supplied feedback text retention, Gemini Files provider-side retention/cleanup, count-based daily quota race conditions, and the need for stronger sanitization/structured transformation if future AI operations begin returning rich HTML.
 
-No large browser AI dependency was added in this change. This is intentional.
+No AI URL-fetching tool currently exists, so this layer does not introduce an SSRF primitive. Future URL-capable tools require explicit egress controls.
 
-- WebGPU can provide strong local inference performance, but support is not uniform across FARAST browser targets and requires HTTPS plus capable hardware/drivers.
-- ONNX Runtime Web has a portable WASM CPU path and a WebGPU execution provider, but GPU support varies materially by browser/platform; WASM can be too slow or memory-heavy for substantial language models.
-- Transformers.js can run supported transformer models through browser/WASM/WebGPU, but model download size, cache storage, first-load time, mobile memory and Persian model quality must be evaluated per model before shipping.
-- Browser-native AI APIs are not used because availability/model behavior is browser-specific and cannot be assumed for FARAST's Firefox-oriented users.
+## Quota and cost control — PARTIALLY IMPLEMENTED
 
-A future local adapter must lazy-load only after explicit user action, show model download size before downloading, cache by immutable model/version, run capability and memory checks, support cancellation, and declare its license. A local failure must never silently upload the same text.
-
-Browser-side model inference status: **NOT AVAILABLE**.
+Operation definitions carry `low|medium|high` cost classes and the existing quota service remains centralized. Weighted token/cost accounting and atomic reservation are **PLANNED**; cost classes are currently metadata rather than billing units.
 
 ## Capability matrix
 
-| Capability | Local | FARAST server/self-hosted | External | Current status |
+| Capability | Local | FARAST server | External | Current status |
 |---|---|---|---|---|
-| Formatting suggestion | rule-based editor actions only | no model | Gemini | **IMPLEMENTED** |
-| Spelling check | no model | no model | Gemini | **IMPLEMENTED** |
-| Punctuation | no model | no model | Gemini | **IMPLEMENTED**; voice flow preserves surrounding formatting |
-| Proofreading suggestions | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
-| Rewrite/paraphrase/tone/shorten/expand | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
-| Summarization/explanation/translation | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
-| Generate/continue/title/outline/keywords | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
-| Document summarize/improve/analyze | no | no | Gemini up to single-call limit | **PARTIALLY IMPLEMENTED**; large-doc chunking planned |
-| Speech-to-text | browser recording only | no engine | Google Speech or Gemini | **IMPLEMENTED** |
+| Formatting suggestion | rule-based only | no model | Gemini | **IMPLEMENTED** |
+| Spelling/punctuation | no model | no model | Gemini | **IMPLEMENTED** |
+| Proofreading | no | no | Gemini | **IMPLEMENTED backend**, UI planned |
+| Rewrite/paraphrase/tone/shorten/expand | no | no | Gemini | **IMPLEMENTED backend**, UI planned |
+| Summarize/explain/translate | no | no | Gemini | **IMPLEMENTED backend**, large-doc strategy planned |
+| Generate/continue/title/outline/keywords | no | no | Gemini | **IMPLEMENTED backend**, UI planned |
+| Document analysis/improvement | no | no | Gemini | **PARTIALLY IMPLEMENTED** |
+| Speech-to-text | recording only | no engine | Google Speech/Gemini | **IMPLEMENTED** |
 | Printed image/PDF OCR | no | no engine | Gemini | **IMPLEMENTED** |
-| Handwriting OCR | no | no | Gemini may process images but no dedicated validated handwriting path | **PARTIALLY IMPLEMENTED / not guaranteed** |
-| Vision understanding | no | no | no normalized vision operation | **PLANNED** |
+| Handwriting OCR | no dedicated engine | no dedicated engine | not guaranteed | **PARTIALLY IMPLEMENTED / not guaranteed** |
+| Vision understanding | no | no | no normalized provider | **PLANNED** |
 | Image generation | no | no | no provider | **NOT AVAILABLE / PLANNED** |
-| Sketch/shape recognition | geometry adapter not implemented | no | no | **NOT AVAILABLE / PLANNED** |
-| Embeddings/RAG | no | no | no | **NOT AVAILABLE; intentionally deferred** |
+| Sketch/shape recognition | no recognizer | no | no | **NOT AVAILABLE / PLANNED** |
+| Embeddings/RAG | no | no | no | **NOT AVAILABLE / intentionally deferred** |
 
-## Large documents
+## Large documents — PARTIALLY IMPLEMENTED
 
-Current behavior is fail-closed: `document.*` requests beyond the registry single-call ceiling are rejected with validation rather than truncated. Planned extension is section-aware chunking followed by hierarchical aggregation, preserving heading/table/list boundaries when the editor exposes sufficient structure. Retrieval/embeddings should only be introduced if repeated document-wide querying makes it necessary.
-
-## Quota and cost control
-
-`AiQuotaService` preserves the existing `daily_ai_requests` entitlement. Registry operations carry `low|medium|high` cost classes so future weighted accounting can be introduced centrally without scattering constants through controllers or JavaScript. Weighted billing is **NOT IMPLEMENTED**; cost classes currently appear only in metadata/telemetry.
+The current system rejects requests beyond the operation's single-call ceiling rather than silently truncating. Future section-aware chunking should preserve headings, tables and lists, then aggregate results hierarchically. Retrieval/embeddings should only be introduced if actual product requirements justify them.
 
 ## Tests and CI
 
-`tests/Unit/AiCorePolicyTest.php` covers legacy operation mapping, deterministic privacy behavior, context allowlisting and large-document rejection.
+`tests/Unit/AiCorePolicyTest.php` covers operation aliases, deterministic privacy, context allowlisting, oversized document rejection and common provider-registry selection. Feature tests cover authorization, response compatibility, model/provider reporting, API-key non-disclosure, explicit unknown-provider rejection without fallback, local-mode no-fallback behavior, quota enforcement, capability blocking, oversized input, safe provider error persistence, malformed provider output, provider connection failure and unvalidated document-ID isolation.
 
-`tests/Feature/EditorAiAssistTest.php` covers unauthenticated access, normalized/backward-compatible responses, API-key non-disclosure, local-mode no-fallback behavior, quota enforcement before provider calls and safe provider error persistence.
+`.github/workflows/ci.yml` validates Composer metadata, PHP/JavaScript syntax, MariaDB/SQLite migrations, routes, Blade compilation and Laravel tests.
 
-`.github/workflows/ci.yml` runs PHP syntax, JavaScript syntax, MariaDB and SQLite migrations, route listing, Blade compilation and `php artisan test`.
+## Future extensions
 
-## Future extension points
+### Local/browser inference
+Implement a real local adapter only for a feature/model that passes browser compatibility, model-size, memory, Persian-quality and licensing review.
 
-### Vision
-
-Add a distinct capability/provider method and normalized image-analysis result. Do not overload OCR with free-form vision behavior.
+### OCR/vision
+Keep OCR extraction and language correction separate. Add a normalized vision capability only when an actual provider is selected and tested.
 
 ### Image generation
-
-Add only when a provider and product policy are selected. Required flow: prompt -> policy/quota -> provider -> MIME/dimension validation -> private storage owned by user -> explicit editor insertion -> cleanup/retention policy. Provider credentials remain server-only.
+Future flow: `prompt -> policy/quota -> provider -> MIME/dimension validation -> private storage -> explicit editor insertion -> lifecycle cleanup`.
 
 ### Drawing recognition
+Prefer local geometry recognition: `strokes -> geometry/features -> primitive -> editable editor object`. External vision should be opt-in for ambiguous cases.
 
-Keep separate from image generation. Prefer local geometry analysis over sending raw strokes externally: strokes -> feature/geometry extraction -> recognized primitive (`line`, `arrow`, `rectangle`, `ellipse`, etc.) -> editable editor object. External vision should be opt-in only for ambiguous drawings.
-
-### Provider expansion
-
-A future OpenAI-compatible/self-hosted/local adapter should implement `AiProvider` (or a capability-specific sibling interface when non-text media is introduced), advertise supported operations/modes, and return provider-neutral results. Provider selection must stay deterministic and inspectable; no fan-out of user content is permitted.
+### Additional providers
+Implement `AiProviderInterface`, declare name/model/capabilities, support deterministic operation selection and return `AiProviderResult`. Providers must never receive user content through hidden fan-out or silent fallback.
