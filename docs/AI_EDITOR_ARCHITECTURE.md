@@ -1,150 +1,168 @@
-# معماری افزایشی هوش مصنوعی ویرایشگر فراست
+# FARAST AI Editor Architecture
 
-## هدف و اصول ایمنی
+Last audited/updated: 2026-09-15
 
-این سند معماری پیشنهادی قابلیت‌های هوش مصنوعی ویرایشگر است. این مرحله صرفاً مستندات است و هیچ مسیر اجرایی، کنترلر، تنظیمات، دیتابیس یا فایل رابط کاربری را تغییر نمی‌دهد.
+This document describes the code that actually exists in `main`. Status labels are literal: **IMPLEMENTED**, **PARTIALLY IMPLEMENTED**, **PLANNED**, **NOT AVAILABLE**.
 
-اصول غیرقابل‌مذاکره:
+## Current implementation
 
-1. حفظ رفتار فعلی و سازگاری عقب‌رو؛ قابلیت‌های جدید پشت رابط‌ها و مسیرهای مستقل اضافه شوند.
-2. اولویت پردازش روی دستگاه کاربر، بدون نصب نرم‌افزار؛ اما هر قابلیت باید مسیر جایگزین شفاف داشته باشد.
-3. هیچ کلید API محرمانه‌ای در JavaScript، HTML، پاسخ صفحه یا مخزن قرار نگیرد.
-4. متن/صوت/تصویر بدون اقدام آگاهانهٔ کاربر به سرویس بیرونی ارسال نشود. قبل از ارسال ابری، مقصد و نوع داده روشن باشد.
-5. هیچ خروجی هوش مصنوعی خودکار روی سند اعمال نشود؛ ابتدا پیش‌نمایش و سپس «اعمال» یا «رد» توسط کاربر.
-6. محدودیت اندازه، زمان، سهمیه، لغو عملیات، مدیریت خطا و ثبت حداقلی رویدادها در همهٔ مسیرها.
-7. هر مرحله کوچک، قابل‌آزمایش و قابل‌برگشت باشد؛ از بازنویسی یک‌بارهٔ ویرایشگر پرهیز شود.
+### Text/editor AI — IMPLEMENTED
 
-## معماری لایه‌ای
+The existing endpoint `POST /editor/ai/assist` remains the compatibility endpoint. `EditorAiAssistController` is thin and delegates to `EditorAiAssistService`, which is now a compatibility facade over `App\Services\AI\AiOrchestrator`.
 
-### 1) رابط کاربری و فرمان‌ها
+The orchestration path is:
 
-یک پنل یکپارچهٔ «دستیار هوشمند» در رابط ویرایشگر، با فرمان‌های مستقل:
+`request -> operation registry -> quota -> privacy policy -> context engine -> deterministic provider selection -> provider adapter -> normalized result -> safe telemetry`
 
-- متن: اصلاح نگارش و علائم، بازنویسی، خلاصه‌سازی، تولید متن، پیشنهاد قالب‌بندی.
-- ورودی: OCR تصویر/دست‌خط و گفتار به متن.
-- ترسیم: تبدیل طرح دستی به شکل‌های تمیز.
-- تصویر: تولید تصویر، در صورت پشتیبانی و مجاز بودن ارائه‌دهنده.
+Core classes:
 
-هر فرمان قرارداد ورودی/خروجی مشخص دارد. خروجی متنی به شکل پیشنهاد/پیش‌نمایش نمایش داده می‌شود؛ اعمال آن با کاربر است. درج خروجی باید از API رسمی ویرایشگر/مدل سند انجام شود، نه با جایگزینی کلی `innerHTML` یا بازسازی کل صفحه.
+- `AiOperationRegistry`: canonical operation names, legacy aliases, input scope, per-operation input ceiling and cost class.
+- `AiContextEngine`: sends only whitelisted context and refuses oversized documents instead of silently truncating them.
+- `AiPrivacyPolicy`: resolves `automatic|local|server|external`. Current server text operations only have an external provider, so explicit `local` or `server` is rejected; it never silently falls back to external.
+- `AiQuotaService`: centralizes existing account capability and daily request checks for editor AI and voice.
+- `AiProvider`: provider contract.
+- `GeminiEditorProvider`: the currently selected external text provider. Gemini keys are read only server-side from `SiteSetting` or `config/services.php`.
+- `AiOrchestrator`: request ID, operation validation, quota/privacy/context checks, provider execution, normalized response and privacy-safe telemetry.
 
-### 2) هماهنگ‌کنندهٔ سمت مرورگر (AI Client Orchestrator)
+### Operation registry — IMPLEMENTED
 
-مسئول انتخاب مسیر اجرا، بررسی قابلیت‌های مرورگر، مدیریت وضعیت عملیات، لغو، محدودیت اندازه و نمایش وضعیت است.
+Legacy names remain accepted: `selection` -> `selection.format_suggest`, `word` -> `selection.spellcheck`, and `punctuation` -> `selection.punctuation`.
 
-ترتیب انتخاب مسیر:
+Canonical text operations currently executable through Gemini are:
 
-1. مدل محلیِ از قبل دریافت‌شده و سازگار با دستگاه، اگر برای همان قابلیت موجود و فعال باشد.
-2. پردازش بومی مرورگر، فقط در صورت وجود API استاندارد و پشتیبانی واقعی؛ قابلیت‌ها نباید بر اساس حدس فعال شوند.
-3. سرویس ابری از طریق endpoint امن برنامه، فقط پس از رضایت/اقدام کاربر و بررسی دسترسی و سهمیه.
-4. پیام قابل‌فهم برای کاربر که قابلیت در این دستگاه/حساب در دسترس نیست؛ هرگز شکست خاموش یا از دست رفتن متن.
+`selection.format_suggest`, `selection.spellcheck`, `selection.punctuation`, `selection.proofread`, `selection.rewrite`, `selection.paraphrase`, `selection.tone`, `selection.shorten`, `selection.expand`, `selection.summarize`, `selection.explain`, `selection.translate`, `text.generate`, `text.continue`, `text.title`, `text.outline`, `text.keywords`, `document.summarize`, `document.improve`, `document.analyze`.
 
-مدل‌های مرورگری ممکن است برای بار اول به دریافت فایل‌های بزرگ نیاز داشته باشند و به RAM، CPU/GPU و پشتیبانی مرورگر وابسته‌اند؛ «بدون نصب» به معنی «بدون دانلود مدل» یا «بدون مصرف منابع دستگاه» نیست. دانلود مدل باید اختیاری، قابل‌مشاهده و قابل‌لغو باشد.
+The existing UI currently invokes only format suggestion, spelling and punctuation. The additional operations are backend-capable extension points and are not claimed as finished UI features.
 
-### 3) آداپتورهای ارائه‌دهنده
+### Normalized response contract — IMPLEMENTED for editor AI and voice
 
-قرارداد داخلی یکسان برای آداپتورها، با قابلیت‌ها و محدودیت‌های اعلام‌شده:
+Editor AI returns existing top-level fields for backward compatibility and also an `ai` object containing request id, canonical operation, provider, model, resolved processing mode, status, result, suggestions, warnings, metadata, usage and error fields. Voice exposes the same conceptual metadata while retaining its existing top-level response fields.
 
-- `LocalModelAdapter`: مدل اجراشونده در مرورگر، بارگذاری تنبل و بررسی پشتیبانی دستگاه.
-- `GeminiServerAdapter`: درخواست از طریق سرور Laravel؛ کلید فقط در تنظیمات سرور، نه در مرورگر.
-- `BrowserCapabilityAdapter`: تشخیص قابلیت‌های بومی مرورگر، بدون تضمین وجود یا کیفیت.
+### Editor integration and formatting preservation — PARTIALLY IMPLEMENTED
 
-انتخاب ارائه‌دهنده برای هر قابلیت جداگانه انجام شود؛ «چند API به‌عنوان پشتیبان» نباید به معنی ارسال خودکار داده به چند شرکت باشد. تغییر ارائه‌دهنده یا ارسال دادهٔ کاربر به سرویس دیگری نیازمند سیاست و اطلاع‌رسانی روشن است.
+The real `contenteditable` editor is used; no demo/parallel editor was introduced. The existing selection mini-toolbar still uses a cloned DOM Range for formatting suggestions.
 
-### 4) دروازهٔ امن Laravel
+A destructive bug in the previous voice-punctuation flow was removed. Previously punctuation correction replaced the entire editor `innerHTML` with plain paragraphs, destroying rich formatting. The current flow stores the newly inserted voice text node, sends only that new text for punctuation correction, and updates only that text node. Existing bold/italic/links/tables/lists and unrelated document structure are therefore not rebuilt by this operation.
 
-مسیرهای فعلی `/editor/ai/assist` و `/editor/voice/transcribe` حفظ می‌شوند تا سازگاری رابط فعلی از بین نرود. قابلیت‌های جدید ابتدا در endpointهای مستقل نسخه‌دار یا عملیات‌های مجازشده اضافه شوند.
+Structured per-suggestion proofread data is available from the backend, but a complete accept-one/reject-one/accept-all rich-text suggestion UI is **PLANNED**.
 
-مسئولیت‌های دروازه:
+### Context minimization — IMPLEMENTED for current editor API
 
-- احراز هویت، کنترل قابلیت حساب و سهمیهٔ روزانه؛
-- اعتبارسنجی عملیات، نوع داده، طول متن، MIME واقعی و اندازهٔ فایل؛
-- محدودیت نرخ، timeout، retry محدود و خطاهای قابل‌فهم؛
-- انتخاب مدل/ارائه‌دهنده از تنظیمات سمت سرور؛
-- حذف داده‌های غیرضروری از logها و جلوگیری از ثبت متن کامل سند؛
-- پاسخ JSON قراردادی و پایدار، بدون افشای کلید یا جزئیات حساس سرویس.
+The context engine accepts only explicitly whitelisted small context fields: sentence context, before/after cursor windows, target language, tone and short instruction. Unknown fields such as an accidentally supplied whole document are not forwarded to the provider.
 
-### 5) قرارداد پاسخ و اعمال تغییر
+Document operations require the caller to explicitly choose a `document.*` operation. Documents over the current single-call limit are rejected rather than truncated. Hierarchical chunking/map-reduce/retrieval for large documents is **PLANNED**. No vector database or embedding infrastructure has been added because the current application does not yet require it.
 
-برای عملیات متنی، پاسخ استاندارد باید دست‌کم وضعیت، نوع عملیات و خروجی پیشنهادی را مشخص کند. عملیات اصلاحی/بازنویسی متن پیشنهادی را برگرداند؛ عملیات تشخیصی فهرست پیشنهادها و دلیل کوتاه بدهد. رابط باید متن اصلی را تا زمان تأیید حفظ کند.
+## Privacy modes
 
-برای عملیات سندی، پیشنهاد قالب‌بندی به‌صورت دستور محدود و allowlist‌شده باشد (مانند نوع پاراگراف یا سبک)، نه HTML یا JavaScript تولیدشده توسط مدل. هر دستور قبل از اعمال در کلاینت اعتبارسنجی شود.
+| Mode | Current behavior |
+|---|---|
+| `local` | **NOT AVAILABLE** for model inference; explicit request is rejected by server endpoints rather than uploaded externally. |
+| `server` | **NOT AVAILABLE** for self-hosted inference; explicit request is rejected rather than routed to Gemini. |
+| `external` | **IMPLEMENTED** for Gemini editor/OCR/voice and Google Cloud Speech when configured. |
+| `automatic` | **IMPLEMENTED** as deterministic policy resolution. It selects only among modes declared available for that operation and never sends the same content to multiple external providers. |
 
-برای OCR و گفتار، خروجی شامل متن و در صورت پشتیبانی، قطعه‌بندی/اطمینان باشد؛ اطمینان مدل نباید به‌عنوان تضمین صحت نمایش داده شود.
+There is no automatic cross-provider retry. Voice selects Google Cloud Speech only when explicitly configured and compatible with the MIME type; otherwise Gemini is selected before the request. A failure on the selected provider is not silently retried at another company.
 
-## ماتریس قابلیت و مسیر اجرا
+## Voice — IMPLEMENTED / PARTIALLY IMPLEMENTED
 
-| قابلیت | مسیر ترجیحی | جایگزین | نکتهٔ ایمنی |
-|---|---|---|---|
-| اصلاح نگارش و علائم | مدل محلی مناسب زبان فارسی، در صورت کیفیت کافی | Gemini از سرور | پیشنهاد و مقایسه با متن اصلی؛ حفظ معنا |
-| بازنویسی و خلاصه | مدل محلی در صورت توان کافی | Gemini از سرور | متن سند فقط با اقدام کاربر ارسال شود |
-| تولید متن | مدل محلی یا Gemini | پیام عدم دسترسی | ورودی/خروجی و محل درج روشن باشد |
-| پیشنهاد قالب‌بندی | قواعد محلی و مدل برای پیشنهاد | پیشنهادهای ثابت | اعمال فقط از طریق دستورات محدود و امن |
-| OCR چاپی/دست‌خط | OCR محلیِ قابل‌استفاده در مرورگر | سرویس ابری با رضایت | پیش‌نمایش متن و امکان اصلاح |
-| گفتار به متن | تشخیص گفتار بومی فقط در صورت پشتیبانی واقعی | مسیر فعلی سرور | نشانگر ضبط، توقف روشن، عدم ارسال پنهانی |
-| تبدیل طرح به شکل | تشخیص هندسی محلی برای اشکال پایه | مدل/سرویس جداگانه | طرح اصلی حفظ و نتیجه جداگانه پیش‌نمایش شود |
-| تولید تصویر | فقط ارائه‌دهنده‌ای که دسترسی و شرایطش تأیید شده | غیرفعال‌بودن شفاف | هزینه/سهمیه و ارسال prompt روشن باشد |
+The real editor records with `MediaRecorder`, uses supported WebM/OGG choices, uploads to `POST /editor/voice/transcribe`, and inserts plain transcript text at the caret.
 
-## حریم خصوصی و امنیت
+Backend validation enforces the account voice capability, daily AI quota, maximum upload size, MIME allowlist and locale allowlist (`fa-IR`, `en-US`, `ar-SA`). Processing mode is explicit/resolved. Engines are Google Cloud Speech when configured for a compatible format, otherwise Gemini.
 
-- کلید Gemini در تنظیمات سرور باقی بماند؛ هرگز به کد سمت کاربر منتقل نشود.
-- برای مدل محلی، فایل ورودی تا جای ممکن در حافظهٔ مرورگر پردازش شود؛ ذخیرهٔ دائمی فقط با انتخاب کاربر.
-- هیچ متن سندی در telemetry یا log خطا ثبت نشود؛ برای تشخیص مشکل از شناسهٔ درخواست، عملیات، زمان و وضعیت استفاده شود.
-- فایل‌های ورودی به‌صورت allowlist بررسی شوند؛ نام فایل کاربر به‌عنوان مسیر ذخیره‌سازی قابل‌اعتماد نباشد.
-- درخواست‌های ابری باید CSRF، auth، policy، rate limit و quota را رعایت کنند.
-- برای پاسخ مدل، HTML را مستقیم وارد DOM نکنید؛ متن با APIهای امن درج شود.
+Browser-native/local speech recognition is **NOT AVAILABLE** in the current code. Voice commands controlling editor actions are **PLANNED**.
 
-## نقشهٔ اجرای کم‌ریسک
+## OCR / document image processing — IMPLEMENTED / PARTIALLY IMPLEMENTED
 
-### مرحلهٔ صفر — ممیزی و خط مبنا
+`GeminiService` remains the existing OCR implementation and was hardened rather than duplicated. It supports images, PDFs and ZIPs containing allowlisted image extensions. Large image/PDF input can use Gemini Files API. The OCR response is schema-constrained into blocks and uncertain words.
 
-- فهرست مسیرهای فعلی، محل بارگذاری اسکریپت‌ها، قراردادهای JSON، مجوزها، سهمیه‌ها و مدل سند را ثبت کنید.
-- تست‌های موجود و رفتار فعلی انتخاب متن، غلط‌یابی، علائم و صوت را مشخص کنید.
-- فایل‌های محیطی، کلیدها، داده‌های اصلی و تنظیمات استقرار را از تغییرات خارج نگه دارید.
+Security hardening now treats document content as untrusted data, validates the returned structural shape, stores only normalized error codes rather than raw provider bodies, and removes temporary ZIP files in `finally`.
 
-### مرحلهٔ یک — قرارداد و تست
+Specialized local OCR, dedicated handwriting OCR, preprocessing pipelines and post-OCR grammar correction as a separate optional stage are **PLANNED**. OCR and grammar correction remain separate capabilities.
 
-- قرارداد داخلی عملیات‌ها و خطاها را تعریف کنید.
-- تست واحد برای اعتبارسنجی، allowlist عملیات و پاسخ‌ها؛ تست ویژگی برای auth/quota/rate limit.
-- endpointهای فعلی بدون تغییر باقی بمانند.
+## Security and telemetry
 
-### مرحلهٔ دو — دستیار متنی افزایشی
+### IMPLEMENTED
 
-- بازنویسی، خلاصه‌سازی و تولید متن را به‌صورت عملیات‌های مجاز جدید اضافه کنید.
-- کنترلر و سرویس موجود را فقط با تغییرات کوچک و تست‌شده گسترش دهید یا سرویس جدا بسازید.
-- رابط پیشنهاد/پیش‌نمایش/اعمال را اضافه کنید؛ رفتارهای فعلی انتخاب متن و غلط‌یابی حفظ شوند.
+- Gemini/provider credentials stay server-side; no API key is returned to browser code.
+- Existing authenticated web routes, CSRF protection and route throttles are preserved.
+- Capability and quota checks are centralized for editor AI and voice.
+- Provider HTTP bodies are not persisted in the new editor AI, voice or OCR failure paths; normalized error codes are logged instead.
+- Editor/OCR prompts explicitly treat user document content as untrusted data to reduce prompt-injection impact.
+- AI text is returned as JSON. Formatting suggestions use an allowlisted action vocabulary, not provider-generated HTML.
+- Voice punctuation updates a text node, not `innerHTML`.
+- Telemetry stores hashes, byte counts, operation/provider/model/status/latency and bounded metadata; it does not intentionally store full editor prompt/output text.
 
-### مرحلهٔ سه — قابلیت‌های محلی
+### Remaining risks / limitations
 
-- برای هر قابلیت، مدل و مجوز استفاده، حجم دانلود، زبان فارسی، مرورگرهای پشتیبانی‌شده و مصرف منابع را ارزیابی کنید.
-- ابتدا قابلیت آزمایشی و اختیاری؛ سپس فعال‌سازی تدریجی با fallback ابریِ رضایت‌محور.
+- `ai_feedback` intentionally supports optional original/corrected text supplied by users; this is product data, not background telemetry, and needs a retention policy.
+- Existing OCR Files API uploads have no implemented provider-side deletion/retention cleanup in this repository.
+- The daily request quota is count-based and has a small concurrent-request race because there is no atomic daily usage counter. Route throttling limits abuse but does not make quota accounting transactionally exact.
+- Full rich-text AI replacement/diff application is not implemented; only safe current operations are wired into the UI.
+- No URL-fetching AI tool exists, so SSRF is not introduced by this AI layer. Future URL-capable vision/web tools require strict allowlists and egress controls.
 
-### مرحلهٔ چهار — OCR و گفتار
+## Browser-side AI evaluation
 
-- OCR را جدا از مسیر صوت پیاده کنید و ورودی تصویر را در مرورگر پیش‌پردازش کنید.
-- گفتار بومی مرورگر را فقط پس از آزمون پشتیبانی زبان فارسی عرضه کنید؛ مسیر فعلی سرور تا زمان تأیید کیفیت جایگزین نشود.
-- وضعیت ضبط/آپلود، لغو، خطا و نگهداری فایل موقت را آزمایش کنید.
+No large browser AI dependency was added in this change. This is intentional.
 
-### مرحلهٔ پنج — طرح و تصویر
+- WebGPU can provide strong local inference performance, but support is not uniform across FARAST browser targets and requires HTTPS plus capable hardware/drivers.
+- ONNX Runtime Web has a portable WASM CPU path and a WebGPU execution provider, but GPU support varies materially by browser/platform; WASM can be too slow or memory-heavy for substantial language models.
+- Transformers.js can run supported transformer models through browser/WASM/WebGPU, but model download size, cache storage, first-load time, mobile memory and Persian model quality must be evaluated per model before shipping.
+- Browser-native AI APIs are not used because availability/model behavior is browser-specific and cannot be assumed for FARAST's Firefox-oriented users.
 
-- تشخیص اشکال پایه را با قواعد هندسی محلی شروع کنید.
-- تولید تصویر و تبدیل طرح پیشرفته را فقط پس از تأیید ارائه‌دهنده، محدودیت‌ها، هزینه و قرارداد خروجی اضافه کنید.
+A future local adapter must lazy-load only after explicit user action, show model download size before downloading, cache by immutable model/version, run capability and memory checks, support cancellation, and declare its license. A local failure must never silently upload the same text.
 
-### مرحلهٔ شش — انتشار تدریجی
+Browser-side model inference status: **NOT AVAILABLE**.
 
-- فعال‌سازی با feature flag و برای گروه کوچک؛ ثبت فقط metadata حداقلی.
-- بررسی خطا، زمان پاسخ، مصرف سهمیه و بازخورد؛ امکان خاموش‌کردن سریع هر قابلیت.
-- انتشار هر مرحله با تست‌های قبلی و بررسی دستی در مرورگرهای هدف.
+## Capability matrix
 
-## معیارهای پذیرش پیش از هر انتشار
+| Capability | Local | FARAST server/self-hosted | External | Current status |
+|---|---|---|---|---|
+| Formatting suggestion | rule-based editor actions only | no model | Gemini | **IMPLEMENTED** |
+| Spelling check | no model | no model | Gemini | **IMPLEMENTED** |
+| Punctuation | no model | no model | Gemini | **IMPLEMENTED**; voice flow preserves surrounding formatting |
+| Proofreading suggestions | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
+| Rewrite/paraphrase/tone/shorten/expand | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
+| Summarization/explanation/translation | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
+| Generate/continue/title/outline/keywords | no | no | Gemini | **IMPLEMENTED backend**, UI **PLANNED** |
+| Document summarize/improve/analyze | no | no | Gemini up to single-call limit | **PARTIALLY IMPLEMENTED**; large-doc chunking planned |
+| Speech-to-text | browser recording only | no engine | Google Speech or Gemini | **IMPLEMENTED** |
+| Printed image/PDF OCR | no | no engine | Gemini | **IMPLEMENTED** |
+| Handwriting OCR | no | no | Gemini may process images but no dedicated validated handwriting path | **PARTIALLY IMPLEMENTED / not guaranteed** |
+| Vision understanding | no | no | no normalized vision operation | **PLANNED** |
+| Image generation | no | no | no provider | **NOT AVAILABLE / PLANNED** |
+| Sketch/shape recognition | geometry adapter not implemented | no | no | **NOT AVAILABLE / PLANNED** |
+| Embeddings/RAG | no | no | no | **NOT AVAILABLE; intentionally deferred** |
 
-- قابلیت‌های فعلی بدون تغییر ناخواسته کار کنند.
-- کاربر بدون دسترسی یا سهمیه نتواند مسیر ابری را دور بزند.
-- کلید API در خروجی مرورگر وجود نداشته باشد.
-- عملیات ناموفق متن سند را پاک یا جایگزین نکند.
-- خروجی مدل بدون تأیید کاربر اعمال نشود.
-- لغو و خطا به وضعیت پایدار رابط برگردند و فایل/ضبط موقت آزاد شود.
-- تست‌های مسیر موفق، ورودی نامعتبر، سهمیه تمام‌شده، timeout و پاسخ نامعتبر اجرا شوند.
+## Large documents
 
-## وضعیت فعلی
+Current behavior is fail-closed: `document.*` requests beyond the registry single-call ceiling are rejected with validation rather than truncated. Planned extension is section-aware chunking followed by hierarchical aggregation, preserving heading/table/list boundaries when the editor exposes sufficient structure. Retrieval/embeddings should only be introduced if repeated document-wide querying makes it necessary.
 
-این فایل معماری و برنامهٔ اجرا را ثبت می‌کند؛ پیاده‌سازی قابلیت‌های جدید در این commit انجام نشده است. پیش از تغییر کد باید فایل‌های کامل مربوط به کنترلرها، سرویس‌ها، routeها، تنظیمات، اسکریپت‌های ویرایشگر و تست‌ها بررسی و قرارداد واقعی ویرایشگر تأیید شود.
+## Quota and cost control
+
+`AiQuotaService` preserves the existing `daily_ai_requests` entitlement. Registry operations carry `low|medium|high` cost classes so future weighted accounting can be introduced centrally without scattering constants through controllers or JavaScript. Weighted billing is **NOT IMPLEMENTED**; cost classes currently appear only in metadata/telemetry.
+
+## Tests and CI
+
+`tests/Unit/AiCorePolicyTest.php` covers legacy operation mapping, deterministic privacy behavior, context allowlisting and large-document rejection.
+
+`tests/Feature/EditorAiAssistTest.php` covers unauthenticated access, normalized/backward-compatible responses, API-key non-disclosure, local-mode no-fallback behavior, quota enforcement before provider calls and safe provider error persistence.
+
+`.github/workflows/ci.yml` runs PHP syntax, JavaScript syntax, MariaDB and SQLite migrations, route listing, Blade compilation and `php artisan test`.
+
+## Future extension points
+
+### Vision
+
+Add a distinct capability/provider method and normalized image-analysis result. Do not overload OCR with free-form vision behavior.
+
+### Image generation
+
+Add only when a provider and product policy are selected. Required flow: prompt -> policy/quota -> provider -> MIME/dimension validation -> private storage owned by user -> explicit editor insertion -> cleanup/retention policy. Provider credentials remain server-only.
+
+### Drawing recognition
+
+Keep separate from image generation. Prefer local geometry analysis over sending raw strokes externally: strokes -> feature/geometry extraction -> recognized primitive (`line`, `arrow`, `rectangle`, `ellipse`, etc.) -> editable editor object. External vision should be opt-in only for ambiguous drawings.
+
+### Provider expansion
+
+A future OpenAI-compatible/self-hosted/local adapter should implement `AiProvider` (or a capability-specific sibling interface when non-text media is introduced), advertise supported operations/modes, and return provider-neutral results. Provider selection must stay deterministic and inspectable; no fan-out of user content is permitted.
