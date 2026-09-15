@@ -9,6 +9,9 @@ interface AiProviderInterface
     /** @return array<string, mixed> */
     public function capabilities(): array;
 
+    /** @param array<string, mixed> $operation */
+    public function supports(array $operation): bool;
+
     /** @param array<string, mixed> $request */
     public function execute(array $request): AiProviderResult;
 }
