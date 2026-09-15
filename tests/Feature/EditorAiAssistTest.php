@@ -32,7 +32,7 @@ class EditorAiAssistTest extends TestCase
     {
         Http::fake(fn () => Http::response(['id'=>'p1','outputs'=>[['type'=>'text','text'=>json_encode(['text'=>'سلام، دنیا!'], JSON_UNESCAPED_UNICODE)]]],200));
         $response = $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'punctuation','text'=>'سلام دنیا','processing_mode'=>'external']);
-        $response->assertOk()->assertJsonPath('text','سلام، دنیا!')->assertJsonPath('ai.operation','selection.punctuation')->assertJsonPath('ai.provider','gemini')->assertJsonPath('ai.processing_mode','external');
+        $response->assertOk()->assertJsonPath('text','سلام، دنیا!')->assertJsonPath('ai.operation','selection.punctuation')->assertJsonPath('ai.provider','gemini')->assertJsonPath('ai.processing_mode','external')->assertJsonPath('ai.model','test-model');
         $this->assertStringNotContainsString('test-secret-key',$response->getContent());
         $this->assertArrayNotHasKey('text', AiInteraction::latest('id')->firstOrFail()->input_meta);
     }
@@ -41,6 +41,18 @@ class EditorAiAssistTest extends TestCase
     {
         Http::fake();
         $this->actingAs($this->user())->postJson('/editor/ai/assist',['operation'=>'selection.rewrite','text'=>'متن','processing_mode'=>'local'])->assertUnprocessable();
+        Http::assertNothingSent();
+    }
+
+    public function test_unknown_provider_is_rejected_without_fallback(): void
+    {
+        Http::fake();
+        $this->actingAs($this->user())->postJson('/editor/ai/assist',[
+            'operation'=>'selection.rewrite',
+            'text'=>'متن',
+            'processing_mode'=>'external',
+            'provider'=>'unknown-provider',
+        ])->assertUnprocessable()->assertJsonPath('message','ai_provider_not_registered');
         Http::assertNothingSent();
     }
 
