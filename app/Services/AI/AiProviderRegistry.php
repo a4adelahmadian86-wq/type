@@ -2,12 +2,19 @@
 
 namespace App\Services\AI;
 
+use App\Services\AI\Providers\GeminiEditorProvider;
+use App\Services\AI\Providers\GeminiProviderAdapter;
 use InvalidArgumentException;
 
 final class AiProviderRegistry
 {
     /** @var array<string, AiProviderInterface> */
     private array $providers = [];
+
+    public function __construct(GeminiEditorProvider $gemini)
+    {
+        $this->register(new GeminiProviderAdapter($gemini));
+    }
 
     public function register(AiProviderInterface $provider): void
     {
