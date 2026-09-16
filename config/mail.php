@@ -4,30 +4,34 @@ return [
     'default' => env('MAIL_MAILER', 'log'),
 
     'mailers' => [
+        // SMTP روی خود سرور (Postfix/Exim محلی) یا هر SMTP دیگر
         'smtp' => [
             'transport' => 'smtp',
             'scheme' => env('MAIL_SCHEME'),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 587),
-            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+            'port' => env('MAIL_PORT', 25),
+            'encryption' => env('MAIL_ENCRYPTION'),
             'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN'),
         ],
 
-        // Resend API (رایگان تا حدود ۳۰۰۰ ایمیل/ماه)
+        // ارسال از طریق باینری sendmail/postfix روی همان سرور — بدون سرویس بیرونی
+        'sendmail' => [
+            'transport' => 'sendmail',
+            'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
+        ],
+
         'resend' => [
             'transport' => 'resend',
         ],
 
-        // Mailgun (در صورت نصب پکیج)
         'mailgun' => [
             'transport' => 'mailgun',
         ],
 
-        // Postmark
         'postmark' => [
             'transport' => 'postmark',
         ],
@@ -43,12 +47,12 @@ return [
 
         'failover' => [
             'transport' => 'failover',
-            'mailers' => ['smtp', 'log'],
+            'mailers' => ['sendmail', 'smtp', 'log'],
         ],
     ],
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'noreply@example.com'),
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@localhost'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'FARAST')),
     ],
 ];
