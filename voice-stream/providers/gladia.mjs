@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 
 const API_URL = 'https://api.gladia.io/v2/live';
+const MAX_PENDING_CHUNKS = 80;
 
 const languageCode = locale => {
   if (locale === 'fa-IR') return 'fa';
@@ -14,6 +15,14 @@ export function createGladiaStream(config, locale, handlers) {
 
   let socket = null;
   let closed = false;
+  const pending = [];
+
+  const flushPending = () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    while (pending.length && socket.readyState === WebSocket.OPEN) {
+      socket.send(pending.shift());
+    }
+  };
 
   const start = async () => {
     const response = await fetch(API_URL, {
@@ -34,6 +43,7 @@ export function createGladiaStream(config, locale, handlers) {
         },
         messages_config: {
           receive_partial_transcripts: true,
+          receive_final_transcripts: true,
         },
       }),
     });
@@ -47,7 +57,10 @@ export function createGladiaStream(config, locale, handlers) {
     if (!data?.url) throw new Error('gladia_session_url_missing');
 
     socket = new WebSocket(data.url);
-    socket.on('open', () => handlers.ready?.());
+    socket.on('open', () => {
+      flushPending();
+      handlers.ready?.();
+    });
     socket.on('message', raw => {
       try {
         const message = JSON.parse(raw.toString());
@@ -71,11 +84,17 @@ export function createGladiaStream(config, locale, handlers) {
 
   return {
     write(buffer) {
-      if (closed || !socket || socket.readyState !== WebSocket.OPEN) return;
-      socket.send(buffer);
+      if (closed || !buffer?.length) return;
+      if (socket?.readyState === WebSocket.OPEN) {
+        socket.send(buffer);
+        return;
+      }
+      if (pending.length >= MAX_PENDING_CHUNKS) pending.shift();
+      pending.push(Buffer.from(buffer));
     },
     close() {
       closed = true;
+      pending.length = 0;
       if (!socket) return;
       try {
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type:'stop_recording'}));
