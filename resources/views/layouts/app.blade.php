@@ -4,19 +4,22 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><meta name="theme-color" content="#0b1734"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="mobile-web-app-title" content="فراست">
 <title>{{ $title ?? 'فراست' }}</title>
 @php
-$isEditor=request()->is('editor'); $isAdmin=request()->is('admin*'); $isDashboard=request()->routeIs('dashboard')||request()->routeIs('admin.*'); $isAuthPage=request()->is('login*')||request()->is('register')||request()->is('forgot-password*');
+$isEditor=request()->is('editor'); $isAdmin=request()->is('admin*'); $isDashboard=auth()->check()&&(request()->routeIs('dashboard')||request()->routeIs('wallet')||request()->routeIs('support')||request()->routeIs('library')||request()->routeIs('announcements')||request()->routeIs('checkout')||request()->routeIs('workspace.*')||request()->routeIs('documents.*')||request()->routeIs('account.*')||request()->routeIs('ai.*')||request()->routeIs('modules.show')); $isAuthPage=request()->is('login*')||request()->is('register')||request()->is('forgot-password*');
 $headerAnnouncements=collect(); $footerSocial=[]; $farastCapabilities=null;
 if($isEditor&&auth()->check()){$farastCapabilities=app(\App\Services\CapabilityService::class)->forUser(auth()->user());}
 if(!$isEditor&&!$isAdmin&&!$isDashboard){if(\Illuminate\Support\Facades\Schema::hasTable('announcements')){$headerAnnouncements=\App\Models\Announcement::visible()->latest()->limit(5)->get();}if(\Illuminate\Support\Facades\Schema::hasTable('site_settings')){$footerRaw=\App\Models\SiteSetting::read('social_links','[]');$decodedSocial=json_decode((string)$footerRaw,true);if(is_array($decodedSocial)){$footerSocial=array_values(array_filter($decodedSocial,static fn($item)=>is_array($item)&&filter_var($item['url']??'',FILTER_VALIDATE_URL)));}}}
 @endphp
 <link rel="preconnect" href="https://cdnjs.cloudflare.com"><link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <link rel="stylesheet" href="/css/farast.css"><link rel="stylesheet" href="/css/ui-polish.css"><link rel="stylesheet" href="/css/site-premium.css"><link rel="stylesheet" href="/css/farast-app.css"><link rel="stylesheet" href="/css/finance.css">
-@if($isDashboard)<link rel="stylesheet" href="/css/dashboard-navigation.css">@endif
+@if($isDashboard)<link rel="stylesheet" href="/css/dashboard-navigation.css"><link rel="stylesheet" href="/css/workspace-pages.css">@endif
 @if($isEditor)
 <meta name="farast-capabilities" content='@json($farastCapabilities)'><link rel="stylesheet" href="/css/voice.css"><link rel="stylesheet" href="/css/word-editor.css"><link rel="stylesheet" href="/css/word-editor-overrides.css"><link rel="stylesheet" href="/css/editor-pro.css"><link rel="stylesheet" href="/css/editor-workspace.css"><link rel="stylesheet" href="/css/editor-final-polish.css?v=20260914"><link rel="stylesheet" href="/css/editor-word-2026-chrome.css?v=20260914"><link rel="stylesheet" href="/css/editor-word-precision.css?v=20260914"><link rel="stylesheet" href="/css/editor-ai-ux.css?v=20260914"><link rel="stylesheet" href="/css/editor-file-picker.css?v=20260914"><link rel="stylesheet" href="/css/editor-scroll-final.css?v=20260914"><link rel="stylesheet" href="/css/editor-ai-selection-actions.css?v=20260915"><link rel="stylesheet" href="/css/editor-word-2026-responsive.css?v=20260916">
 @endif
-@if($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
+@if($isAdmin)<link rel="stylesheet" href="/css/admin.css"><link rel="stylesheet" href="/css/admin-email.css">@endif
 @if($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
+@if($isEditor && !empty($openDocument))
+<script>window.__openDoc = @json($openDocument);</script>
+@endif
 </head>
 <body class="{{ $isEditor?'editor-page-body':'' }} {{ $isAuthPage?'auth-page':'' }}">
 @if(!$isEditor&&!$isAdmin&&!$isDashboard)
@@ -32,5 +35,8 @@ if(!$isEditor&&!$isAdmin&&!$isDashboard){if(\Illuminate\Support\Facades\Schema::
 @if(!$isEditor&&!$isAdmin&&!$isDashboard)<footer class="site-footer" dir="rtl"><div class="footer-top"><div class="footer-about"><div class="footer-brand"><span class="brand-mark farast-symbol"><i></i><i></i><i></i><i></i><b></b></span><b>فراست</b></div><p>فراست یک فضای یکپارچه برای فروش فایل‌های دیجیتال و ارائه خدمات تایپ، تبدیل، ویرایش و پردازش هوشمند است.</p></div><div class="footer-column"><h3>محصول و خدمات</h3><a href="/#farastStore">فروش فایل</a><a href="/editor">تایپ و تبدیل</a><a href="/pricing">قیمت‌گذاری</a><a href="/support">پشتیبانی</a></div><div class="footer-column"><h3>فضای کاربر</h3><a href="/dashboard">داشبورد</a><a href="/wallet">کیف پول</a><a href="/announcements">اعلانات</a></div></div><div class="footer-bottom"><span>© {{ now()->year }} فراست — تمامی حقوق محفوظ است.</span><div><a href="/privacy">حریم خصوصی</a><a href="/terms">قوانین استفاده</a><a href="/refund-policy">شرایط بازگشت وجه</a></div></footer>@endif
 <script src="/js/farast-tab-lock.js"></script><script src="/js/farast.js"></script><script src="/js/farast-sound.js"></script>@if(!$isAdmin&&!$isDashboard)<script src="/js/farast-app.js"></script>@endif
 @if($isEditor)<script src="/js/editor-polish.js?v=20260914"></script><script src="/js/editor-payment.js?v=20260914"></script><script src="/js/editor-redesign.js?v=20260914"></script><script src="/js/editor-redesign-guard.js?v=20260914"></script><script src="/js/editor-tools-patch.js?v=20260914"></script><script src="/js/editor-final-polish.js?v=20260914"></script><script src="/js/editor-functional-polish.js?v=20260914"></script><script src="/js/editor-word-2026-chrome.js?v=20260914"></script><script src="/js/editor-ai-ux.js?v=20260914"></script><script src="/js/editor-ai-selection-actions.js?v=20260915"></script><script src="/js/editor-voice-popover.js?v=20260916-3"></script><script src="/js/farast-voice.js?v=20260916-4"></script><script src="/js/editor-file-picker.js?v=20260914"></script>@endif
-@stack('scripts')<script>document.documentElement.classList.add('js-ready');</script>
+@stack('scripts')
+@if($isEditor && !empty($openDocument))
+<script src="/js/editor-open-document.js"></script>
+@endif<script>document.documentElement.classList.add('js-ready');</script>
 </body></html>
