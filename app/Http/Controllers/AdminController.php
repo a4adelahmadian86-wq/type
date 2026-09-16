@@ -256,17 +256,23 @@ class AdminController extends Controller
 
     public function updateEmailSettings(Request $request)
     {
-        SiteSetting::write('email_enabled', $request->boolean('email_enabled') ? '1' : '0');
+        if ($request->has('email_enabled')) {
+            SiteSetting::write('email_enabled', $request->boolean('email_enabled') ? '1' : '0');
+        }
 
         foreach (array_keys(EmailService::TYPES) as $type) {
             $key = 'email_'.$type.'_enabled';
-            SiteSetting::write($key, $request->boolean($key) ? '1' : '0');
+            if ($request->has($key)) {
+                SiteSetting::write($key, $request->boolean($key) ? '1' : '0');
+            }
         }
 
-        SiteSetting::write('email_sync', $request->boolean('email_sync') ? '1' : '0');
+        if ($request->has('email_sync')) {
+            SiteSetting::write('email_sync', $request->boolean('email_sync') ? '1' : '0');
+        }
 
         $data = $request->validate([
-            'mail_provider' => ['required', 'in:log,smtp,mailtrap,brevo,resend'],
+            'mail_provider' => ['required', 'in:sendmail,local,log,smtp,mailtrap,brevo,resend'],
             'mail_from_address' => ['nullable', 'email', 'max:255'],
             'mail_from_name' => ['nullable', 'string', 'max:120'],
             'mail_host' => ['nullable', 'string', 'max:200'],
@@ -309,7 +315,6 @@ class AdminController extends Controller
             SiteSetting::write('brevo_api_key', trim($data['brevo_api_key']), true);
         }
 
-        // presetهای پیش‌فرض برای راحتی
         if ($data['mail_provider'] === 'mailtrap' && empty($data['mail_host'])) {
             SiteSetting::write('mail_host', 'sandbox.smtp.mailtrap.io');
             SiteSetting::write('mail_port', '2525');
