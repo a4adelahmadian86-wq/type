@@ -12,6 +12,30 @@ use Illuminate\Support\Facades\Log;
 
 class VoiceController extends Controller
 {
+    public function streamToken(Request $request)
+    {
+        $request->validate([
+            'locale' => ['required', 'string', 'in:fa-IR,en-US,ar-SA'],
+        ]);
+
+        $payload = [
+            'uid' => (int) $request->user()->id,
+            'locale' => $request->string('locale')->toString(),
+            'iat' => time(),
+            'exp' => time() + 120,
+            'nonce' => bin2hex(random_bytes(12)),
+        ];
+
+        $encoded = rtrim(strtr(base64_encode(json_encode($payload, JSON_UNESCAPED_SLASHES)), '+/', '-_'), '=');
+        $signature = hash_hmac('sha256', $encoded, (string) config('app.key'));
+
+        return response()->json([
+            'ok' => true,
+            'token' => $encoded . '.' . $signature,
+            'websocket_url' => rtrim((string) config('services.voice_stream.url', env('VOICE_STREAM_URL', 'ws://127.0.0.1:6002')), '/'),
+        ]);
+    }
+
     public function transcribe(
         Request $request,
         GoogleSpeechToTextService $googleSpeech,
@@ -38,12 +62,7 @@ class VoiceController extends Controller
                 : $voice->transcribe($mime,$bytes,$data['locale'],$context);
 
             $rawText = (string)($result['text'] ?? '');
-            $finalText = $corrections->apply(
-                $rawText,
-                $data['locale'],
-                $result['engine'] ?? null,
-                $request->user()->id
-            );
+            $finalText = $corrections->apply($rawText,$data['locale'],$result['engine'] ?? null,$request->user()->id);
             $result['raw_text'] = $rawText;
             $result['text'] = $finalText;
             $result['correction_applied'] = $finalText !== $rawText;
