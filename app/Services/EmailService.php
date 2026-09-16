@@ -168,6 +168,9 @@ class EmailService
 
     public function sendTest(string $email): void
     {
+        // تست همیشه هم‌زمان اجرا شود تا نتیجه فوری در پنل دیده شود
+        SiteSetting::write('email_sync', '1');
+
         $this->dispatch(
             type: 'test',
             to: $email,
@@ -203,13 +206,29 @@ class EmailService
         try {
             $provider = $this->mailConfig->currentProvider();
 
+            // پیش‌پرواز: بدون تنظیمات واقعی، خطای شفاف بده (به‌جز log)
+            if ($provider !== 'log' && ! $this->mailConfig->providerConfigured($provider)) {
+                throw new \RuntimeException('سرویس‌دهنده «'.$provider.'» پیکربندی نشده است. کلید/SMTP را در پنل ایمیل ذخیره کنید.');
+            }
+
+            $from = (string) config('mail.from.address');
+            if ($provider !== 'log' && (str_ends_with(mb_strtolower($from), '@example.com') || $from === '' || $from === 'noreply@example.com')) {
+                throw new \RuntimeException('آدرس فرستنده (From) نامعتبر است. یک دامنهٔ واقعی تأییدشده تنظیم کنید.');
+            }
+
             // Resend از API مستقیم (بدون وابستگی اجباری به SDK)
             if ($provider === 'resend') {
                 $this->sendViaResendApi($to, $subject, $htmlView, $viewData);
-            } elseif (config('queue.default') === 'sync' || filter_var(SiteSetting::read('email_sync', false), FILTER_VALIDATE_BOOLEAN)) {
-                Mail::to($to)->send($mailable);
             } else {
-                Mail::to($to)->queue($mailable);
+                // پیش‌فرض: ارسال هم‌زمان. صف فقط وقتی صریحاً email_sync=false باشد.
+                $useSync = config('queue.default') === 'sync'
+                    || filter_var(SiteSetting::read('email_sync', true), FILTER_VALIDATE_BOOLEAN);
+
+                if ($useSync) {
+                    Mail::to($to)->send($mailable);
+                } else {
+                    Mail::to($to)->queue($mailable);
+                }
             }
 
             $log->update(['status' => 'sent', 'sent_at' => now()]);
@@ -246,12 +265,10 @@ class EmailService
         }
 
         $html = View::make($htmlView, $viewData)->render();
-        // layout را هم رندر کنیم اگر view فقط section دارد — برای otp و بقیه از extends استفاده می‌کنند
         if (! str_contains($html, '<html')) {
             $html = View::make('emails.layout', array_merge($viewData, ['subject' => $subject, 'slot' => $html]))->render();
         }
 
-        // Blade extends خروجی کامل HTML می‌دهد؛ مستقیم استفاده می‌کنیم
         $html = View::make($htmlView, array_merge($viewData, ['subject' => $subject]))->render();
 
         $from = config('mail.from.address');
