@@ -1,3 +1,5 @@
-farast-dashboard-build: 2026-09-16-v4-restore
-source: farast/dashboard-navigation (proven working shell)
-sha-must-change: after ac4a1d7
+farast-dashboard-build: FULL-from-dashboard-navigation
+source-branch: farast/dashboard-navigation
+source-sha: aa2869932aabe8ffb3a26bb40559879719e5af2f
+includes: dashboard navigation shell + self-hosted email (sendmail/local)
+replaces: broken partial main patches (372084b / ac4a1d7)
