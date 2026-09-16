@@ -44,7 +44,17 @@
 <link rel="stylesheet" href="/css/dashboard-navigation.css">
 <link rel="stylesheet" href="/css/workspace-pages.css">
 @endif
-@if($isEditor)<meta name="farast-capabilities" content='@json($farastCapabilities)'><link rel="stylesheet" href="/css/voice.css"><link rel="stylesheet" href="/css/word-editor.css"><link rel="stylesheet" href="/css/word-editor-overrides.css"><link rel="stylesheet" href="/css/editor-pro.css"><link rel="stylesheet" href="/css/editor-workspace.css">@endif
+@if($isEditor)
+<meta name="farast-capabilities" content='@json($farastCapabilities)'>
+<link rel="stylesheet" href="/css/voice.css">
+<link rel="stylesheet" href="/css/word-editor.css">
+<link rel="stylesheet" href="/css/word-editor-overrides.css">
+<link rel="stylesheet" href="/css/editor-pro.css">
+<link rel="stylesheet" href="/css/editor-workspace.css">
+@if(!empty($openDocument))
+<script type="application/json" id="farast-open-document">@json($openDocument)</script>
+@endif
+@endif
 @if($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
 @if($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
 </head>
@@ -164,10 +174,6 @@
 <script src="/js/editor-redesign.js"></script>
 <script src="/js/editor-redesign-guard.js"></script>
 <script src="/js/editor-tools-patch.js"></script>
-@if(!empty($openDocument))
-<script type="application/json" id="farast-open-document">@json($openDocument)</script>
-<script src="/js/editor-open-document.js"></script>
-@endif
 @endif
 @stack('scripts')
 <script>document.documentElement.classList.add('js-ready');</script>
