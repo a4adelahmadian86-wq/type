@@ -7,218 +7,136 @@ use Illuminate\Support\Facades\Route;
 
 class DashboardNavigationService
 {
+    public function __construct(private readonly CapabilityService $capabilities)
+    {
+    }
+
+    /**
+     * Build the one dashboard tree for the current user.
+     *
+     * Navigation is presentation only. Destination authorization remains
+     * server-side in middleware/controllers; this service only projects the
+     * master registry into what the current principal may reasonably see.
+     */
     public function forUser(?User $user): array
     {
-        $isAdmin = $user?->isAdmin() === true;
-
-        return $isAdmin ? $this->adminNavigation() : $this->memberNavigation($user);
+        return collect(config('dashboard.navigation', []))
+            ->map(fn (array $group) => $this->filterGroup($group, $user))
+            ->filter()
+            ->values()
+            ->all();
     }
 
-    private function adminNavigation(): array
+    private function filterGroup(array $group, ?User $user): ?array
     {
-        $admin = static fn (string $label, string $icon, string $fragment = ''): array => [
-            'label' => $label,
-            'icon' => $icon,
-            'href' => route('admin.index').$fragment,
-            'active' => request()->routeIs('admin.index') && ($fragment === '' || request()->getRequestUri() === route('admin.index').$fragment),
+        if (! $this->authorized($group, $user)) {
+            return null;
+        }
+
+        $items = collect($group['items'] ?? [])
+            ->map(fn (array $item) => $this->filterItem($item, $user))
+            ->filter()
+            ->values()
+            ->all();
+
+        return $items === [] ? null : [
+            'key' => $group['key'] ?? null,
+            'label' => $group['label'],
+            'icon' => $group['icon'],
+            'items' => $items,
         ];
+    }
+
+    private function filterItem(array $item, ?User $user): ?array
+    {
+        if (! $this->authorized($item, $user)) {
+            return null;
+        }
+
+        $routeName = $item['route'] ?? null;
+        $planned = (bool) ($item['planned'] ?? false);
+
+        if ($routeName !== null && ! Route::has($routeName)) {
+            // A registry entry must never create a fake URL. If the module has
+            // not shipped yet, retain an explicit, non-actionable placeholder.
+            $planned = true;
+            $routeName = null;
+        }
+
+        if ($routeName === null && ! $planned) {
+            return null;
+        }
+
+        $href = null;
+        $active = false;
+        if ($routeName !== null) {
+            $href = route($routeName).($item['fragment'] ?? '');
+            $active = request()->routeIs($routeName);
+            if ($active && isset($item['fragment'])) {
+                $active = request()->getRequestUri() === $href;
+            }
+        }
 
         return [
-            [
-                'label' => 'میز کار',
-                'icon' => 'fa-table-cells-large',
-                'items' => [
-                    $admin('نمای کلی', 'fa-grid-2'),
-                    $admin('کاربران و دسترسی‌ها', 'fa-users', '#users'),
-                    $admin('وضعیت عملیات', 'fa-chart-line', '#operations'),
-                ],
-            ],
-            [
-                'label' => 'اسناد و فایل‌ها',
-                'icon' => 'fa-folder-open',
-                'items' => [
-                    ['label' => 'اسناد سیستم', 'icon' => 'fa-file-lines', 'href' => null, 'disabled' => true],
-                    ['label' => 'فایل‌ها', 'icon' => 'fa-folder', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'ویرایشگر',
-                'icon' => 'fa-pen-ruler',
-                'items' => [
-                    ['label' => 'شروع تایپ', 'icon' => 'fa-plus', 'href' => route('editor'), 'active' => request()->routeIs('editor')],
-                    ['label' => 'اسناد اخیر', 'icon' => 'fa-clock-rotate-left', 'href' => route('admin.index').'#users', 'active' => false],
-                ],
-            ],
-            [
-                'label' => 'اتوماسیون و گردش کار',
-                'icon' => 'fa-diagram-project',
-                'items' => [
-                    ['label' => 'گردش‌کارها', 'icon' => 'fa-route', 'href' => null, 'disabled' => true],
-                    ['label' => 'تاریخچه اجراها', 'icon' => 'fa-clock-rotate-left', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'هوش مصنوعی',
-                'icon' => 'fa-wand-magic-sparkles',
-                'items' => [
-                    $admin('وضعیت سرویس‌ها', 'fa-circle-nodes', '#ai'),
-                    $admin('تنظیمات AI', 'fa-sliders', '#ai-settings'),
-                ],
-            ],
-            [
-                'label' => 'تیم و همکاری',
-                'icon' => 'fa-people-group',
-                'items' => [
-                    ['label' => 'تیم‌ها', 'icon' => 'fa-users-rectangle', 'href' => null, 'disabled' => true],
-                    ['label' => 'اشتراک‌گذاری', 'icon' => 'fa-share-nodes', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'گزارش‌ها و تحلیل‌ها',
-                'icon' => 'fa-chart-pie',
-                'items' => [
-                    ['label' => 'گزارش‌های مدیریتی', 'icon' => 'fa-chart-column', 'href' => null, 'disabled' => true],
-                    ['label' => 'مصرف و عملکرد', 'icon' => 'fa-gauge-high', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'اعلان‌ها و پیام‌ها',
-                'icon' => 'fa-bell',
-                'items' => [
-                    ['label' => 'اعلان‌های سامانه', 'icon' => 'fa-bullhorn', 'href' => route('announcements'), 'active' => request()->routeIs('announcements')],
-                    ['label' => 'مدیریت اعلان‌ها', 'icon' => 'fa-bullhorn', 'href' => route('admin.index').'#content', 'active' => false],
-                ],
-            ],
-            [
-                'label' => 'مدیریت کاربران و دسترسی‌ها',
-                'icon' => 'fa-user-shield',
-                'items' => [
-                    $admin('کاربران', 'fa-users', '#users'),
-                    ['label' => 'نقش‌ها و مجوزها', 'icon' => 'fa-key', 'href' => null, 'disabled' => true],
-                    ['label' => 'دعوت‌نامه‌ها', 'icon' => 'fa-user-plus', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'مدیریت سازمان',
-                'icon' => 'fa-building',
-                'items' => [
-                    ['label' => 'اطلاعات سازمان', 'icon' => 'fa-building', 'href' => null, 'disabled' => true],
-                    ['label' => 'سیاست‌ها و محدودیت‌ها', 'icon' => 'fa-shield-halved', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'امنیت و نظارت',
-                'icon' => 'fa-shield-halved',
-                'items' => [
-                    ['label' => 'گزارش فعالیت‌ها', 'icon' => 'fa-list-check', 'href' => null, 'disabled' => true],
-                    ['label' => 'تنظیمات امنیتی', 'icon' => 'fa-lock', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'تنظیمات و پشتیبانی',
-                'icon' => 'fa-gear',
-                'items' => [
-                    ['label' => 'مالی', 'icon' => 'fa-wallet', 'href' => route('admin.finance'), 'active' => request()->routeIs('admin.finance')],
-                    ['label' => 'ایمیل', 'icon' => 'fa-envelope', 'href' => route('admin.emails'), 'active' => request()->routeIs('admin.emails')],
-                    ['label' => 'شبکه‌های اجتماعی', 'icon' => 'fa-share-nodes', 'href' => route('admin.social'), 'active' => request()->routeIs('admin.social')],
-                    ['label' => 'پشتیبانی', 'icon' => 'fa-headset', 'href' => route('support'), 'active' => request()->routeIs('support')],
-                ],
-            ],
+            'key' => $item['key'] ?? null,
+            'label' => $item['label'],
+            'icon' => $item['icon'],
+            'href' => $href,
+            'active' => $active,
+            'disabled' => $href === null,
+            'planned' => $href === null,
+            'permission' => $item['permission'] ?? null,
+            'scope' => $item['scope'] ?? null,
         ];
     }
 
-    private function memberNavigation(?User $user): array
+    private function authorized(array $definition, ?User $user): bool
     {
-        $capabilities = $user ? app(CapabilityService::class)->forUser($user) : [];
-        $can = static fn (string $key): bool => (bool) ($capabilities[$key] ?? false);
+        if (! $user) {
+            return false;
+        }
 
-        $item = static function (string $label, string $icon, string $routeName, bool $active = false, ?string $requiredCapability = null) use ($can): array {
-            if (! Route::has($routeName)) {
-                return ['label' => $label, 'icon' => $icon, 'href' => null, 'disabled' => true];
-            }
+        if (($definition['admin_only'] ?? false) && ! $user->isAdmin()) {
+            return false;
+        }
 
-            if ($requiredCapability !== null && ! $can($requiredCapability)) {
-                return ['label' => $label, 'icon' => $icon, 'href' => null, 'disabled' => true];
-            }
+        $permission = $definition['permission'] ?? null;
+        if ($permission !== null && ! $this->allows($user, $permission, $definition['scope'] ?? 'own')) {
+            return false;
+        }
 
-            return ['label' => $label, 'icon' => $icon, 'href' => route($routeName), 'active' => $active];
+        return true;
+    }
+
+    /**
+     * Translate the existing capability store into the normalized permission
+     * vocabulary used by navigation. Unknown granular permissions are denied
+     * for non-admins until a real authorization source exists for them.
+     */
+    private function allows(User $user, string $permission, string $scope): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        // The current schema has no team/organization/global scope relation.
+        // Never imply broader access merely because a menu item exists.
+        if (in_array($scope, ['team', 'organization', 'global'], true)) {
+            return false;
+        }
+
+        $capability = match ($permission) {
+            'documents.view' => null, // owning documents are inherent to dashboard access
+            'editor.use' => 'can_type',
+            'ai.use' => 'can_ai',
+            'support.use' => 'can_support',
+            default => null,
         };
 
-        return [
-            [
-                'label' => 'میز کار',
-                'icon' => 'fa-table-cells-large',
-                'items' => [
-                    $item('نمای کلی', 'fa-grid-2', 'dashboard', request()->routeIs('dashboard')),
-                    ['label' => 'فعالیت‌های اخیر', 'icon' => 'fa-clock-rotate-left', 'href' => null, 'disabled' => true],
-                    ['label' => 'موارد نیازمند اقدام', 'icon' => 'fa-list-check', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'اسناد و فایل‌ها',
-                'icon' => 'fa-folder-open',
-                'items' => [
-                    $item('اسناد من', 'fa-file-lines', 'dashboard', request()->routeIs('dashboard')),
-                    $item('فایل‌ها', 'fa-folder', 'library', request()->routeIs('library')),
-                    ['label' => 'اسناد اشتراکی', 'icon' => 'fa-share-nodes', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'ویرایشگر',
-                'icon' => 'fa-pen-ruler',
-                'items' => [
-                    $item('شروع تایپ', 'fa-plus', 'editor', request()->routeIs('editor'), 'can_type'),
-                    $item('اسناد اخیر', 'fa-clock-rotate-left', 'dashboard', request()->routeIs('dashboard')),
-                ],
-            ],
-            [
-                'label' => 'اتوماسیون و گردش کار',
-                'icon' => 'fa-diagram-project',
-                'items' => [
-                    ['label' => 'گردش‌کارها', 'icon' => 'fa-route', 'href' => null, 'disabled' => true],
-                    ['label' => 'تاریخچه اجراها', 'icon' => 'fa-clock-rotate-left', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'هوش مصنوعی',
-                'icon' => 'fa-wand-magic-sparkles',
-                'items' => [
-                    $item('ابزارهای AI', 'fa-sparkles', 'editor', request()->routeIs('editor'), 'can_ai'),
-                    ['label' => 'درخواست‌ها و تاریخچه', 'icon' => 'fa-clock-rotate-left', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'تیم و همکاری',
-                'icon' => 'fa-people-group',
-                'items' => [
-                    ['label' => 'تیم‌های من', 'icon' => 'fa-users-rectangle', 'href' => null, 'disabled' => true],
-                    ['label' => 'اشتراک‌گذاری و همکاری', 'icon' => 'fa-share-nodes', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'گزارش‌ها و تحلیل‌ها',
-                'icon' => 'fa-chart-pie',
-                'items' => [
-                    ['label' => 'گزارش‌های شخصی', 'icon' => 'fa-chart-column', 'href' => null, 'disabled' => true],
-                    ['label' => 'مصرف و عملکرد', 'icon' => 'fa-gauge-high', 'href' => null, 'disabled' => true],
-                ],
-            ],
-            [
-                'label' => 'اعلان‌ها و پیام‌ها',
-                'icon' => 'fa-bell',
-                'items' => [
-                    $item('اعلان‌های من', 'fa-bullhorn', 'announcements', request()->routeIs('announcements')),
-                ],
-            ],
-            [
-                'label' => 'تنظیمات و پشتیبانی',
-                'icon' => 'fa-gear',
-                'items' => [
-                    ['label' => 'تنظیمات حساب', 'icon' => 'fa-user-gear', 'href' => null, 'disabled' => true],
-                    $item('پشتیبانی', 'fa-headset', 'support', request()->routeIs('support'), 'can_support'),
-                    ['label' => 'راهنما', 'icon' => 'fa-circle-question', 'href' => null, 'disabled' => true],
-                ],
-            ],
-        ];
+        if ($capability === null) {
+            return in_array($permission, ['documents.view'], true);
+        }
+
+        return $this->capabilities->allowed($user, $capability);
     }
 }
