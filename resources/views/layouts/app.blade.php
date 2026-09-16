@@ -7,7 +7,6 @@
     $isAdmin = request()->is('admin*');
     $isDashboard = auth()->check() && (
         request()->routeIs('dashboard')
-        || request()->routeIs('admin.*')
         || request()->routeIs('wallet')
         || request()->routeIs('support')
         || request()->routeIs('library')
@@ -33,106 +32,66 @@
         if (\Illuminate\Support\Facades\Schema::hasTable('site_settings')) {
             $footerRaw = \App\Models\SiteSetting::read('social_links', '[]');
             $decodedSocial = json_decode((string) $footerRaw, true);
-            if (is_array($decodedSocial)) {
-                $footerSocial = array_values(array_filter($decodedSocial, static fn ($item) => is_array($item) && filter_var($item['url'] ?? '', FILTER_VALIDATE_URL)));
-            }
+            $footerSocial = is_array($decodedSocial) ? $decodedSocial : [];
         }
     }
 @endphp
-<link rel="preconnect" href="https://cdnjs.cloudflare.com"><link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="/css/farast.css"><link rel="stylesheet" href="/css/ui-polish.css"><link rel="stylesheet" href="/css/site-premium.css"><link rel="stylesheet" href="/css/farast-app.css"><link rel="stylesheet" href="/css/finance.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="stylesheet" href="/css/farast.css">
 @if($isDashboard)
 <link rel="stylesheet" href="/css/dashboard-navigation.css">
 <link rel="stylesheet" href="/css/workspace-pages.css">
 @endif
-@if($isEditor)
-<meta name="farast-capabilities" content='@json($farastCapabilities)'>
-<link rel="stylesheet" href="/css/voice.css">
-<link rel="stylesheet" href="/css/word-editor.css">
-<link rel="stylesheet" href="/css/word-editor-overrides.css">
-<link rel="stylesheet" href="/css/editor-pro.css">
-<link rel="stylesheet" href="/css/editor-workspace.css">
-@if(!empty($openDocument))
-<script type="application/json" id="farast-open-document">@json($openDocument)</script>
-@endif
-@endif
+@if($isEditor)<link rel="stylesheet" href="/css/editor.css">@endif
 @if($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
-@if($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
-</head>
-<body class="{{ $isEditor ? 'editor-page-body' : '' }} {{ $isAuthPage ? 'auth-page' : '' }}">
+@if(request()->is('store*') || request()->is('library') || request()->is('checkout*'))
+<link rel="stylesheet" href="/css/store.css">
+@endif
 @if(!$isEditor && !$isAdmin && !$isDashboard)
-<header class="top premium-header" data-app-header>
+<link rel="stylesheet" href="/css/site.css">
+@endif
+@stack('styles')
+@if($isEditor && !empty($openDocument))
+<script>window.__openDoc = @json($openDocument);</script>
+@endif
+</head>
+<body class="{{ $isEditor ? 'is-editor' : '' }} {{ $isAdmin ? 'is-admin' : '' }} {{ $isDashboard ? 'is-dashboard' : '' }} {{ $isAuthPage ? 'is-auth' : '' }}">
+@if(!$isEditor && !$isAdmin && !$isDashboard)
+<header class="site-header" dir="rtl">
     <div class="header-inner">
-        <a class="brand premium-brand" href="/" aria-label="فراست">
-            <span class="brand-mark farast-symbol" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></span>
-            <span><b>FARAST</b><small>فراست | فروش فایل و خدمات هوشمند</small></span>
+        <a class="brand" href="/">
+            <span class="brand-mark farast-symbol"><i></i><i></i><i></i><i></i><b></b></span>
+            <span class="brand-text">فراست</span>
         </a>
-        <div class="header-search" role="search">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input id="farastGlobalSearch" type="search" placeholder="جستجوی فایل، خدمت یا موضوع..." autocomplete="off">
-            <button type="button" id="farastVoiceSearch" aria-label="جستجوی صوتی"><i class="fa-solid fa-microphone"></i></button>
-        </div>
         <nav class="main-nav">
-            <a href="/"><i class="fa-solid fa-house"></i><span>خانه</span></a>
             <a href="/#farastStore"><i class="fa-solid fa-store"></i><span>فروشگاه</span></a>
-            <a href="/editor"><i class="fa-solid fa-pen-ruler"></i><span>تایپ و خدمات</span></a>
+            <a href="/editor"><i class="fa-solid fa-keyboard"></i><span>ویرایشگر</span></a>
             <a href="/pricing"><i class="fa-solid fa-tags"></i><span>قیمت</span></a>
+            <a href="/support"><i class="fa-solid fa-headset"></i><span>پشتیبانی</span></a>
             @auth
-                <a href="/dashboard"><i class="fa-solid fa-table-cells-large"></i><span>فضای من</span></a>
-                <a href="/support"><i class="fa-solid fa-headset"></i><span>پشتیبانی</span></a>
-                @if(auth()->user()->isAdmin())
-                    <a href="/admin"><i class="fa-solid fa-user-shield"></i><span>مدیریت</span></a>
-                @endif
+                <a href="{{ route('dashboard') }}"><i class="fa-solid fa-gauge-high"></i><span>داشبورد</span></a>
+                <form method="post" action="{{ route('logout') }}" class="header-logout">@csrf<button type="submit"><i class="fa-solid fa-right-from-bracket"></i><span>خروج</span></button></form>
             @else
-                <a href="/login"><i class="fa-solid fa-right-to-bracket"></i><span>ورود</span></a>
+                <a href="{{ route('login') }}"><i class="fa-solid fa-right-to-bracket"></i><span>ورود</span></a>
             @endauth
         </nav>
-        <div class="header-actions">
-            <button type="button" class="header-icon-button" id="farastCartButton" aria-label="سبد خرید">
-                <i class="fa-solid fa-bag-shopping"></i><b id="farastCartCount">0</b>
-            </button>
-            <a class="header-cta" href="/editor"><i class="fa-solid fa-bolt"></i><span>شروع کار</span></a>
-        </div>
     </div>
 </header>
-@if($headerAnnouncements->isNotEmpty() && request()->routeIs('home'))
-<div class="announcement-ticker">
-    <div>
-        <i class="fa-solid fa-bullhorn"></i>
-        <b>{{ $headerAnnouncements->first()->title }}</b>
-        <span>{{ \Illuminate\Support\Str::limit($headerAnnouncements->first()->body, 120) }}</span>
-    </div>
-    <a href="/announcements">مشاهده همه</a>
-</div>
-@endif
 @endif
 <main id="app-main" class="{{ $isDashboard ? 'dashboard-shell' : '' }}">
 @if($isDashboard && auth()->check())
-    <div class="dashboard-shell-inner">
-        @include('components.dashboard-navigation')
+<div class="dashboard-shell-inner">
+    <x-dashboard-navigation />
+    <div class="dashboard-shell-content">
 @endif
 @yield('content')
 @if($isDashboard && auth()->check())
     </div>
+</div>
 @endif
 </main>
-@if(!$isEditor && !$isAdmin && !$isDashboard)
-<aside class="farast-cart-drawer" id="farastCartDrawer" aria-hidden="true">
-    <div class="farast-cart-head"><strong>سبد خرید</strong><button type="button" data-cart-close aria-label="بستن"><i class="fa-solid fa-xmark"></i></button></div>
-    <div class="farast-cart-body" id="farastCartBody"></div>
-    <div class="farast-cart-foot"><span>جمع</span><strong id="farastCartTotal">۰ تومان</strong><button type="button" id="farastCartCheckout" disabled>ادامه پرداخت</button></div>
-</aside>
-<div class="farast-cart-backdrop" id="farastCartBackdrop" hidden></div>
-<div class="farast-connectivity" id="farastConnectivity" aria-live="polite" hidden>
-    <div class="farast-connectivity-card">
-        <div class="farast-connectivity-copy">
-            <strong id="farastConnectivityTitle">اتصال اینترنت در دسترس نیست</strong>
-            <span id="farastConnectivityMessage">بخش‌های ذخیره‌شده در دسترس می‌مانند.</span>
-        </div>
-        <button type="button" id="farastConnectivityRetry" aria-label="تلاش دوباره"><i class="fa-solid fa-rotate-right"></i></button>
-    </div>
-</div>
-<button type="button" id="farastSoundToggle" class="farast-sound-toggle" aria-label="فعال یا غیرفعال کردن صدای رابط" aria-pressed="false"><i class="fa-solid fa-volume-high"></i></button>
-@endif
 @if(!$isEditor && !$isAdmin && !$isDashboard)
 <footer class="site-footer" dir="rtl">
     <div class="footer-top">
