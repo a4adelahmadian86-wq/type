@@ -1,9 +1,12 @@
 (()=>{
   'use strict';
+  if(window.__farastVoiceRuntimeLoaded)return;
+  window.__farastVoiceRuntimeLoaded=true;
   const root=document.getElementById('farastWord');
   const mic=document.getElementById('mic');
   const editor=document.getElementById('editor')||root?.querySelector('[contenteditable="true"]')||root?.querySelector('.word-editor,[data-editor="true"],[role="textbox"]');
-  if(!editor||!mic){console.error('[FARAST VOICE] Editor or microphone button not found.',{editor:!!editor,mic:!!mic});return;}
+  if(!mic){console.error('[FARAST VOICE] Microphone button not found.');return;}
+  if(!editor){console.error('[FARAST VOICE] Editor surface not found.');return;}
   const meta=document.querySelector('meta[name="farast-capabilities"]');let caps={can_voice:true,can_type:true};try{if(meta?.content)caps={...caps,...JSON.parse(meta.content)}}catch{}
   const authenticated=window.FARAST_AUTHENTICATED===true||root?.dataset.authenticated==='1',csrf=document.querySelector('meta[name="csrf-token"]')?.content||'',Sound=()=>window.FarastSound,$=id=>document.getElementById(id),nf=n=>new Intl.NumberFormat('fa-IR').format(n||0);
   let panel,ws=null,mediaStream=null,audioContext=null,sourceNode=null,workletNode=null,wanted=false,paused=false,savedRange=null,interimNode=null,sessionWords=0,lastFinalText='',startedAt=0,timer=null,stopGraceTimer=null,starting=false;
@@ -25,5 +28,5 @@
   function pauseResume(){if(!wanted)return;paused=!paused;if(paused){setStatus('مکث');panel.classList.remove('is-listening');pauseBtn.innerHTML='<i class="fa-solid fa-play"></i> ادامه'}else{setStatus('در حال گوش دادن');panel.classList.add('is-listening');pauseBtn.innerHTML='<i class="fa-solid fa-pause"></i> مکث'}}
   function stop(){if(!wanted&&!starting)return;starting=false;wanted=false;paused=false;setStatus('در حال پایان');stopTimer();closeAudio();const socket=ws;ws=null;clearTimeout(stopGraceTimer);if(socket?.readyState===WebSocket.OPEN){try{socket.send(JSON.stringify({type:'stop'}))}catch{}clearTimeout(stopGraceTimer);stopGraceTimer=setTimeout(()=>{try{socket.close(1000,'normal')}catch{}},1500)}else{finish(true)}}
   function finish(keep){clearTimeout(stopGraceTimer);stopGraceTimer=null;closeAudio();stopTimer();setControls(false);panel.classList.remove('is-listening');pauseBtn.innerHTML='<i class="fa-solid fa-pause"></i> مکث';if(interimNode){interimNode.replaceWith('');interimNode=null}if(keep){setStatus('پایان یافت');modeLabel.textContent='تایپ زنده با هوش مصنوعی';Sound()?.play('voiceStop',{gain:.72,cooldown:0})}}
-  startBtn.addEventListener('click',start);pauseBtn.addEventListener('click',pauseResume);stopBtn.addEventListener('click',stop);$('fvClose').addEventListener('click',close);locale.addEventListener('change',()=>{if(wanted)showError('برای تغییر زبان ابتدا تایپ صوتی را متوقف کنید.')});mic.addEventListener('click',open);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel.classList.contains('is-open'))close()});
+  startBtn.addEventListener('click',start);pauseBtn.addEventListener('click',pauseResume);stopBtn.addEventListener('click',stop);$('fvClose').addEventListener('click',close);locale.addEventListener('change',()=>{if(wanted)showError('برای تغییر زبان ابتدا تایپ صوتی را متوقف کنید.')});mic.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();open()});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&panel.classList.contains('is-open'))close()});
 })();
