@@ -1,5 +1,5 @@
-farast-dashboard-build: FULL-from-dashboard-navigation
-source-branch: farast/dashboard-navigation
-source-sha: aa2869932aabe8ffb3a26bb40559879719e5af2f
-includes: dashboard navigation shell + self-hosted email (sendmail/local)
-replaces: broken partial main patches (372084b / ac4a1d7)
+farast-dashboard-build: FULL-aa28699-email+nav
+source: farast/dashboard-navigation @ aa2869932aabe8ffb3a26bb40559879719e5af2f
+main-tip-must-be-after: 1b13b32053f66d687a62a0a3226f77ebc208c332
+NOT: 372084b / ac4a1d7 / c4cf9c1
+layout-marker-in-html: FULL-aa28699-email+nav | NOT 372084b

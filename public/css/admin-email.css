@@ -1,30 +1,16 @@
-/* —— Admin Email System —— */
-.email-panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px 18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+/* farast admin email — from dashboard-navigation aa28699 */
+.email-panel{background:#fff;border:1px solid var(--line,#e8edf4);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 8px 24px rgba(15,23,42,.04)}
 .email-settings-form .modern-field small{display:block;margin-top:6px;color:#8b99ae;font-size:9px;line-height:1.6}
-.email-settings-form .modern-field select,.email-settings-form .modern-field input{width:100%;border:1px solid #dde5ef;border-radius:9px;padding:9px 11px;font:11px Vazirmatn,IRANSansWeb_Medium,Tahoma;background:#fff;color:#17233d}
-.email-settings-form .modern-field select{cursor:pointer}
+.email-settings-form .modern-field select,.email-settings-form .modern-field input{width:100%;border:1px solid #dde5ef;border-radius:9px;padding:9px 11px;font:11px Vazirmatn,Tahoma;background:#fff;color:#17233d}
 .email-toggle-field .check-line{display:flex;align-items:center;gap:8px;font-size:11px;color:#475569}
-.email-type-flags{margin-top:4px}
 .email-ticket-list,.email-log-list{display:grid;gap:10px}
 .email-ticket-card{border:1px solid #e8edf4;border-radius:14px;padding:14px;background:#f8fafc}
 .email-ticket-card__head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
-.email-ticket-card__head b{display:block;font-size:12px;color:#17233d}
-.email-ticket-card__head small{display:block;margin-top:3px;color:#8b99ae;font-size:10px}
-.email-ticket-card__head>span{font-size:10px;color:#94a3b8}
 .email-ticket-reply{display:grid;gap:8px}
-.email-ticket-reply textarea{width:100%;border:1px solid #dde5ef;border-radius:10px;padding:10px 12px;font:12px Vazirmatn,Tahoma;background:#fff;color:#17233d;resize:vertical;min-height:72px}
-.email-ticket-reply__actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.email-ticket-reply__actions select{border:1px solid #dde5ef;border-radius:9px;padding:8px 10px;font:11px Vazirmatn,Tahoma;background:#fff}
+.email-ticket-reply textarea{width:100%;border:1px solid #dde5ef;border-radius:10px;padding:10px 12px;font:12px Vazirmatn,Tahoma;min-height:72px}
 .email-log-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 14px;border:1px solid #e8edf4;border-radius:14px;background:#fff}
-.email-log-row__main{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
-.email-log-icon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#eef4ff;color:#1769ff;flex-shrink:0}
-.email-log-row__main b{display:block;font-size:12px;color:#17233d}
-.email-log-row__main small{display:block;margin-top:2px;color:#8b99ae;font-size:10px}
-.email-log-row__meta{display:flex;gap:8px;align-items:center;font-size:10px;color:#94a3b8}
 .email-log-status{padding:3px 8px;border-radius:999px;font-weight:700;font-size:9px;background:#f1f5f9;color:#64748b}
 .email-log-status.status-sent{background:#eaf9f1;color:#238957}
 .email-log-status.status-failed{background:#fef2f2;color:#b91c1c}
-.email-log-status.status-queued{background:#eff6ff;color:#1d4ed8}
-.email-log-error{width:100%;font-size:11px;color:#b91c1c;background:#fef2f2;border-radius:8px;padding:8px 10px}
-.email-empty{padding:28px;text-align:center;color:#8b99ae;font-size:12px;border:1px dashed #e2e8f0;border-radius:14px;background:#fafbfc}
-@media(max-width:900px){.email-settings-form.settings-modern{grid-template-columns:1fr}.email-type-flags.capability-modern{grid-template-columns:1fr 1fr}}
+.email-empty{padding:28px;text-align:center;color:#8b99ae;font-size:12px;border:1px dashed #e2e8f0;border-radius:14px}
+@media(max-width:900px){.email-settings-form{grid-template-columns:1fr}}
