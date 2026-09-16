@@ -1,0 +1,4 @@
+farast-dashboard-build: 2026-09-16-v3
+commit-target: main
+purpose: force updater bot to pick a NEW sha after c4cf9c1
+includes: dashboard blade, navigation component, navigation service, navigation css
