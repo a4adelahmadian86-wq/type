@@ -45,7 +45,7 @@
 <link rel="stylesheet" href="/css/workspace-pages.css">
 @endif
 @if($isEditor)<link rel="stylesheet" href="/css/editor.css">@endif
-@if($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
+@if($isAdmin)<link rel="stylesheet" href="/css/admin.css"><link rel="stylesheet" href="/css/admin-email.css">@endif
 @if(request()->is('store*') || request()->is('library') || request()->is('checkout*'))
 <link rel="stylesheet" href="/css/store.css">
 @endif
