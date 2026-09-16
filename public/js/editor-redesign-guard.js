@@ -13,7 +13,6 @@ ready(()=>{
  replace('mic',[['click',e=>{e.preventDefault();api.startVoice()}]]);
  if(source)source.setAttribute('accept','image/jpeg,image/png,image/webp,application/pdf,application/zip,.jpg,.jpeg,.png,.webp,.pdf,.zip');
  if(analyze && source?.dataset.path)analyze.disabled=false;
- // Never allow the legacy GET form of the estimate endpoint to survive.
  const fetch0=window.fetch.bind(window);
  window.fetch=(input,init={})=>{
   const url=typeof input==='string'?input:(input?.url||'');
