@@ -18,7 +18,7 @@
                     <span><i class="fa-regular fa-file-lines"></i><span>{{ $d->title }}</span></span>
                     <span>{{ $d->status }}</span>
                     <span>{{ $d->updated_at?->diffForHumans() }}</span>
-                    <a href="{{ route('editor') }}"><i class="fa-solid fa-arrow-left"></i> ویرایشگر</a>
+                    <a href="{{ route('editor', ['document' => $d->id]) }}"><i class="fa-solid fa-arrow-left"></i> باز کردن</a>
                 </article>
             @empty
                 <div class="empty-state"><i class="fa-regular fa-folder-open"></i><p>سندی ثبت نشده است.</p></div>

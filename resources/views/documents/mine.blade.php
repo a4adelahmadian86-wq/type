@@ -17,7 +17,7 @@
                 <span>{{ number_format((int) $d->page_count) }} صفحه</span>
                 <span>{{ $d->status }}</span>
                 <span>{{ number_format((int) $d->price_rials) }} ریال</span>
-                <a href="{{ route('editor') }}"><i class="fa-solid fa-arrow-left"></i> باز کردن</a>
+                <a href="{{ route('editor', ['document' => $d->id]) }}"><i class="fa-solid fa-arrow-left"></i> باز کردن</a>
             </article>
         @empty
             <div class="empty-state"><i class="fa-regular fa-folder-open"></i><p>هنوز سندی ندارید.</p><a href="{{ route('editor') }}">ایجاد اولین سند</a></div>

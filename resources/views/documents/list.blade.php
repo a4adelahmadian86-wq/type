@@ -16,7 +16,11 @@
                 <span>{{ number_format((int) ($d->page_count ?? 0)) }} صفحه</span>
                 <span>{{ $d->status }}</span>
                 <span>{{ $d->updated_at?->diffForHumans() ?? $d->created_at?->diffForHumans() }}</span>
-                <a href="{{ route('editor') }}">باز کردن</a>
+                @if(($d->status ?? '') !== 'deleted')
+                    <a href="{{ route('editor', ['document' => $d->id]) }}">باز کردن</a>
+                @else
+                    <span>—</span>
+                @endif
             </article>
         @empty
             <div class="empty-state"><i class="fa-regular fa-folder-open"></i><p>{{ $empty ?? 'موردی یافت نشد.' }}</p></div>

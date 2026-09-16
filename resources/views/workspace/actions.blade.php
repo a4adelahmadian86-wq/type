@@ -24,7 +24,7 @@
                 <span><i class="fa-solid fa-file-invoice-dollar"></i><span>{{ $d->title }}</span></span>
                 <span>{{ $d->status }}</span>
                 <span>{{ number_format((int) $d->price_rials) }} ریال</span>
-                <a href="{{ route('editor') }}">باز کردن</a>
+                <a href="{{ route('editor', ['document' => $d->id]) }}">باز کردن</a>
             </article>
         @empty
             <div class="empty-state"><i class="fa-solid fa-check"></i><p>مورد نیازمند اقدام مالی ندارید.</p></div>

@@ -17,7 +17,7 @@
                     <span><i class="fa-solid fa-file-pen"></i><span>{{ $d->title }}</span></span>
                     <span>{{ $d->status }}</span>
                     <span>{{ number_format((int) $d->page_count) }} صفحه</span>
-                    <a href="{{ route('editor') }}">ادامه</a>
+                    <a href="{{ route('editor', ['document' => $d->id]) }}">ادامه</a>
                 </article>
             @empty
                 <div class="empty-state"><p>پیش‌نویس بازی ندارید.</p></div>
