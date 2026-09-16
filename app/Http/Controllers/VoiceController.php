@@ -6,6 +6,7 @@ use App\Services\AI\AiPrivacyPolicy;
 use App\Services\AI\AiQuotaService;
 use App\Services\GoogleSpeechToTextService;
 use App\Services\VoiceCorrectionService;
+use App\Services\VoiceProviderRouter;
 use App\Services\VoiceTranscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -26,14 +27,33 @@ class VoiceController extends Controller
             'nonce' => bin2hex(random_bytes(12)),
         ];
 
-        $encoded = rtrim(strtr(base64_encode(json_encode($payload, JSON_UNESCAPED_SLASHES)), '+/', '-_'), '=');
-        $signature = hash_hmac('sha256', $encoded, (string) config('app.key'));
-
         return response()->json([
             'ok' => true,
-            'token' => $encoded . '.' . $signature,
+            'token' => $this->signStreamPayload($payload),
             'websocket_url' => rtrim((string) config('services.voice_stream.url', env('VOICE_STREAM_URL', 'ws://127.0.0.1:6002')), '/'),
         ]);
+    }
+
+    public function streamConfig(Request $request, VoiceProviderRouter $router)
+    {
+        $token = (string) $request->input('token', '');
+        $payload = $this->verifyStreamToken($token);
+        abort_unless($payload, 401);
+
+        $locale = (string) $payload['locale'];
+        $account = $router->best($locale);
+        abort_unless($account, 503, 'voice_provider_unavailable');
+
+        $credentials = $account->credentials_array;
+        return response()->json([
+            'ok' => true,
+            'provider' => $account->provider,
+            'model' => $account->model,
+            'region' => $account->metadata['region'] ?? env('GOOGLE_SPEECH_REGION', 'us'),
+            'credentials' => $credentials,
+            'account_id' => $account->id,
+            'quality_score' => (int) $account->quality_score,
+        ], 200, ['Cache-Control' => 'no-store']);
     }
 
     public function transcribe(
@@ -72,5 +92,24 @@ class VoiceController extends Controller
         }
         return response()->json(['ok'=>true,'text'=>$result['text'],'engine'=>$result['engine'] ?? 'gemini','interaction_id'=>$result['interaction_id'] ?? null,'request_id'=>$result['request_id'] ?? null,
             'ai'=>['request_id'=>$result['request_id'] ?? null,'operation'=>'voice.transcribe','provider'=>$result['engine'] ?? 'gemini','model'=>$result['model'] ?? null,'processing_mode'=>$processingMode,'status'=>'completed','result'=>['text'=>$result['text']],'suggestions'=>[],'warnings'=>[],'metadata'=>['interaction_id'=>$result['interaction_id'] ?? null,'locale'=>$data['locale'],'correction_applied'=>(bool)($result['correction_applied'] ?? false)],'usage'=>null,'error'=>null]]);
+    }
+
+    private function signStreamPayload(array $payload): string
+    {
+        $encoded = rtrim(strtr(base64_encode(json_encode($payload, JSON_UNESCAPED_SLASHES)), '+/', '-_'), '=');
+        return $encoded . '.' . hash_hmac('sha256', $encoded, (string) config('app.key'));
+    }
+
+    private function verifyStreamToken(string $token): ?array
+    {
+        if ($token === '' || !str_contains($token, '.')) return null;
+        [$payload, $signature] = array_pad(explode('.', $token, 2), 2, '');
+        $expected = hash_hmac('sha256', $payload, (string) config('app.key'));
+        if ($signature === '' || !hash_equals($expected, $signature)) return null;
+        $decoded = base64_decode(strtr($payload, '-_', '+/') . str_repeat('=', (4 - strlen($payload) % 4) % 4), true);
+        if ($decoded === false) return null;
+        $data = json_decode($decoded, true);
+        if (!is_array($data) || empty($data['uid']) || empty($data['locale']) || (int) ($data['exp'] ?? 0) < time()) return null;
+        return $data;
     }
 }
