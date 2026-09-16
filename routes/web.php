@@ -1,11 +1,15 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\DocumentsWorkspaceController;
 use App\Http\Controllers\EditorController;
 use App\Http\Controllers\EditorSaveController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ModulePageController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\SocialController;
 use App\Http\Controllers\StoreCartController;
@@ -15,12 +19,14 @@ use App\Http\Controllers\SupportController;
 use App\Http\Controllers\TypingPreflightController;
 use App\Http\Controllers\VoiceController;
 use App\Http\Controllers\WalletController;
+use App\Http\Controllers\WorkspaceController;
 use App\Models\Announcement;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 Route::get('/', function () {
     $announcements = Schema::hasTable('announcements') ? Announcement::visible()->latest()->limit(4)->get() : collect();
+
     return view('home', compact('announcements'));
 })->name('home');
 
@@ -44,6 +50,7 @@ Route::get('/assets/sounds/{file}', function (string $file) {
     abort_unless(preg_match('/^[0-9]{2}-[a-z0-9-]+\.ogg$/', $file) === 1);
     $path = base_path('FARAST-UI-SOUNDS/OGG/'.$file);
     abort_unless(is_file($path), 404);
+
     return response()->file($path, [
         'Content-Type' => 'audio/ogg',
         'Cache-Control' => 'public, max-age=31536000, immutable',
@@ -83,6 +90,30 @@ Route::middleware('auth')->group(function () {
     Route::get('/library', [StoreLibraryController::class, 'index'])->name('library');
     Route::post('/library/{libraryItem}/download', [StoreLibraryController::class, 'issue'])->middleware('throttle:20,10')->name('library.download.issue');
     Route::get('/downloads/{download}', [StoreLibraryController::class, 'stream'])->middleware('throttle:60,10')->name('store.download.stream');
+
+    // Workspace pages (real data, no fake metrics)
+    Route::get('/workspace/recent', [WorkspaceController::class, 'recent'])->name('workspace.recent');
+    Route::get('/workspace/tasks', [WorkspaceController::class, 'tasks'])->name('workspace.tasks');
+    Route::get('/workspace/actions', [WorkspaceController::class, 'actions'])->name('workspace.actions');
+    Route::get('/workspace/shortcuts', [WorkspaceController::class, 'shortcuts'])->name('workspace.shortcuts');
+
+    Route::get('/documents/mine', [DocumentsWorkspaceController::class, 'mine'])->name('documents.mine');
+    Route::get('/documents/recent', [DocumentsWorkspaceController::class, 'recent'])->name('documents.recent');
+    Route::get('/documents/drafts', [DocumentsWorkspaceController::class, 'drafts'])->name('documents.drafts');
+    Route::get('/documents/deleted', [DocumentsWorkspaceController::class, 'deleted'])->name('documents.deleted');
+    Route::get('/documents/all', [DocumentsWorkspaceController::class, 'all'])->middleware('admin')->name('documents.all');
+
+    Route::get('/account', [AccountController::class, 'show'])->name('account.show');
+    Route::put('/account', [AccountController::class, 'update'])->middleware('throttle:20,10')->name('account.update');
+    Route::put('/account/password', [AccountController::class, 'updatePassword'])->middleware('throttle:10,10')->name('account.password');
+
+    Route::get('/ai/history', [AiWorkspaceController::class, 'history'])->middleware('capability:can_ai')->name('ai.history');
+    Route::get('/ai/quota', [AiWorkspaceController::class, 'quota'])->middleware('capability:can_ai')->name('ai.quota');
+
+    // Honest module destinations (empty-state pages with real auth)
+    Route::get('/modules/{slug}', [ModulePageController::class, 'show'])
+        ->where('slug', '[a-z0-9\-]+')
+        ->name('modules.show');
 });
 
 Route::get('/editor', [EditorController::class, 'create'])->middleware(['auth', 'single.editor'])->name('editor');
@@ -93,10 +124,8 @@ Route::middleware(['auth', 'single.editor'])->group(function () {
     Route::post('/editor/feedback', [EditorController::class, 'feedback'])->middleware(['throttle:60,10', 'capability:can_feedback'])->name('editor.feedback');
     Route::post('/editor/voice/transcribe', [VoiceController::class, 'transcribe'])->middleware(['throttle:30,10', 'capability:can_voice'])->name('editor.voice.transcribe');
 
-    // Defense-in-depth: format-specific capability is also enforced inside ExportController.
     Route::post('/editor/export/docx', [ExportController::class, 'export'])->defaults('format', 'docx')->middleware(['throttle:10,10', 'capability:can_export_docx'])->name('editor.export.docx');
     Route::post('/editor/export/pdf', [ExportController::class, 'export'])->defaults('format', 'pdf')->middleware(['throttle:10,10', 'capability:can_export_pdf'])->name('editor.export.pdf');
-    // Keep legacy route name for any existing callers; still protected by controller checks.
     Route::post('/editor/export/{format}', [ExportController::class, 'export'])->whereIn('format', ['docx', 'pdf'])->middleware('throttle:10,10')->name('editor.export');
 
     Route::post('/editor/heartbeat', [EditorController::class, 'heartbeat'])->middleware('throttle:60,1')->name('editor.heartbeat');
