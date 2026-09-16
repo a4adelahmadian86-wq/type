@@ -256,7 +256,6 @@ class AdminController extends Controller
 
     public function updateEmailSettings(Request $request)
     {
-        // فقط فیلدهایی که در فرم فعلی ارسال شده‌اند به‌روز شوند تا فرم انواع ایمیل، تنظیمات provider را صفر نکند
         if ($request->has('email_enabled')) {
             SiteSetting::write('email_enabled', $request->boolean('email_enabled') ? '1' : '0');
         }
@@ -273,7 +272,7 @@ class AdminController extends Controller
         }
 
         $data = $request->validate([
-            'mail_provider' => ['required', 'in:log,smtp,mailtrap,brevo,resend'],
+            'mail_provider' => ['required', 'in:sendmail,local,log,smtp,mailtrap,brevo,resend'],
             'mail_from_address' => ['nullable', 'email', 'max:255'],
             'mail_from_name' => ['nullable', 'string', 'max:120'],
             'mail_host' => ['nullable', 'string', 'max:200'],
@@ -340,7 +339,7 @@ class AdminController extends Controller
             $emailService->sendTest($data['test_email']);
 
             if ($provider === 'log') {
-                return back()->with('status', 'حالت Log فعال است: ایمیل واقعی ارسال نشد و فقط در لاگ سرور ثبت شد. برای ارسال واقعی، سرویس‌دهنده Resend/Brevo/SMTP را تنظیم کنید.');
+                return back()->with('status', 'حالت Log فعال است: ایمیل واقعی ارسال نشد و فقط در لاگ سرور ثبت شد. برای ارسال واقعی از «سرور خود سایت» استفاده کنید.');
             }
 
             return back()->with('status', 'ایمیل آزمایشی به '.$data['test_email'].' از طریق «'.(MailConfigService::PROVIDERS[$provider] ?? $provider).'» ارسال شد.');
