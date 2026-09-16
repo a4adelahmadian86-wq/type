@@ -26,14 +26,59 @@ class EditorController extends Controller
     public function dashboard(CapabilityService $capabilities)
     {
         return view('dashboard', [
-            'documents' => auth()->user()->documents()->latest()->get(),
+            'documents' => auth()->user()->documents()->where('status', '!=', 'deleted')->latest()->get(),
             'capabilities' => $capabilities->forUser(auth()->user()),
         ]);
     }
 
-    public function create(CapabilityService $capabilities)
+    public function create(Request $request, CapabilityService $capabilities)
     {
-        return view('editor', ['capabilities' => $capabilities->forUser(auth()->user())]);
+        $documentPayload = null;
+        $documentId = $request->integer('document');
+
+        if ($documentId > 0 && auth()->check()) {
+            $doc = TypingDocument::query()
+                ->whereKey($documentId)
+                ->where('user_id', auth()->id())
+                ->where('status', '!=', 'deleted')
+                ->first();
+
+            if ($doc) {
+                $documentPayload = [
+                    'id' => $doc->id,
+                    'title' => $doc->title,
+                    'content' => $doc->content,
+                    'status' => $doc->status,
+                    'page_count' => $doc->page_count,
+                    'price_rials' => $doc->price_rials,
+                    'word_count' => $doc->word_count,
+                ];
+            }
+        }
+
+        return view('editor', [
+            'capabilities' => $capabilities->forUser(auth()->user()),
+            'openDocument' => $documentPayload,
+        ]);
+    }
+
+    public function showDocument(Request $request, TypingDocument $document)
+    {
+        abort_unless($document->user_id === $request->user()->id, 403);
+        abort_if($document->status === 'deleted', 404);
+
+        return response()->json([
+            'ok' => true,
+            'document' => [
+                'id' => $document->id,
+                'title' => $document->title,
+                'content' => $document->content,
+                'status' => $document->status,
+                'page_count' => $document->page_count,
+                'price_rials' => $document->price_rials,
+                'word_count' => $document->word_count,
+            ],
+        ]);
     }
 
     public function pending(Request $request)
@@ -136,6 +181,7 @@ class EditorController extends Controller
             ]);
         } catch (\Throwable $e) {
             Log::warning('farast.editor.ocr_exception', ['user_id' => auth()->id(), 'error' => $e->getMessage()]);
+
             return response()->json(['ok' => false, 'message' => 'ارتباط با هوش مصنوعی برقرار نشد. جزئیات خطا در لاگ ثبت شده است.'], 502);
         }
 
@@ -159,8 +205,11 @@ class EditorController extends Controller
             : $free->availablePages($user, (int) $caps['weekly_free_pages']);
         $freePreview = min(1, $freePages, $pages);
 
-        if ($caps['unlimited']) $price = 0;
-        elseif ($freePreview > 0) $price = max(0, $price - (int) $quote['free_page_value_rials']);
+        if ($caps['unlimited']) {
+            $price = 0;
+        } elseif ($freePreview > 0) {
+            $price = max(0, $price - (int) $quote['free_page_value_rials']);
+        }
 
         $doc = TypingDocument::create([
             'user_id' => auth()->id(),
@@ -278,7 +327,10 @@ class EditorController extends Controller
     {
         $token = $request->session()->get('editor_session_token');
         $session = EditorSession::where('token', $token)->where('user_id', auth()->id())->first();
-        if ($session) $session->update(['last_seen_at' => now(), 'expires_at' => now()->addMinutes(20)]);
+        if ($session) {
+            $session->update(['last_seen_at' => now(), 'expires_at' => now()->addMinutes(20)]);
+        }
+
         return response()->json(['ok' => true]);
     }
 
@@ -292,19 +344,28 @@ class EditorController extends Controller
             $safe = e($text);
             foreach ($uncertain as $u) {
                 $word = (string) ($u['text'] ?? '');
-                if ($word === '') continue;
+                if ($word === '') {
+                    continue;
+                }
                 $suggestions = json_encode(array_values($u['suggestions'] ?? []), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $replacement = '<span class="ai-uncertain" data-original="'.e($word).'" data-suggestions="'.e($suggestions).'">'.e($word).'</span>';
                 $safe = preg_replace('/'.preg_quote(e($word), '/').'/u', $replacement, $safe, 1) ?? $safe;
             }
             $safe = nl2br($safe, false);
             $level = min(3, max(1, (int) ($block['level'] ?? 2)));
-            if ($type === 'heading') $html .= '<h'.$level.'>'.$safe.'</h'.$level.'>';
-            elseif ($type === 'list_item') $html .= '<p class="ai-list-item">• '.$safe.'</p>';
-            elseif ($type === 'quote') $html .= '<blockquote>'.$safe.'</blockquote>';
-            elseif ($type === 'blank') $html .= '<p><br></p>';
-            else $html .= '<p>'.$safe.'</p>';
+            if ($type === 'heading') {
+                $html .= '<h'.$level.'>'.$safe.'</h'.$level.'>';
+            } elseif ($type === 'list_item') {
+                $html .= '<p class="ai-list-item">• '.$safe.'</p>';
+            } elseif ($type === 'quote') {
+                $html .= '<blockquote>'.$safe.'</blockquote>';
+            } elseif ($type === 'blank') {
+                $html .= '<p><br></p>';
+            } else {
+                $html .= '<p>'.$safe.'</p>';
+            }
         }
+
         return $html !== '' ? $html : '<p><br></p>';
     }
 
@@ -316,6 +377,7 @@ class EditorController extends Controller
                 $issues[] = ['word' => $u['text'] ?? '', 'suggestions' => $u['suggestions'] ?? []];
             }
         }
+
         return $issues;
     }
 
@@ -323,23 +385,34 @@ class EditorController extends Controller
     {
         $allowed = '<p><br><strong><b><em><i><u><s><ol><ul><li><blockquote><h1><h2><h3><span><div>';
         $html = strip_tags($html, $allowed);
-        if (! class_exists(\DOMDocument::class)) return $html;
+        if (! class_exists(\DOMDocument::class)) {
+            return $html;
+        }
         $dom = new \DOMDocument('1.0', 'UTF-8');
         @$dom->loadHTML('<?xml encoding="UTF-8"><div id="farast-root">'.$html.'</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
         $root = $dom->getElementById('farast-root');
-        if (! $root) return $html;
+        if (! $root) {
+            return $html;
+        }
         $allowedAttrs = ['class', 'dir', 'data-original', 'data-suggestions'];
         $walker = function ($node) use (&$walker, $allowedAttrs) {
             if ($node instanceof \DOMElement) {
                 foreach (iterator_to_array($node->attributes) as $attr) {
-                    if (! in_array($attr->name, $allowedAttrs, true)) $node->removeAttribute($attr->name);
+                    if (! in_array($attr->name, $allowedAttrs, true)) {
+                        $node->removeAttribute($attr->name);
+                    }
                 }
             }
-            foreach (iterator_to_array($node->childNodes) as $child) $walker($child);
+            foreach (iterator_to_array($node->childNodes) as $child) {
+                $walker($child);
+            }
         };
         $walker($root);
         $out = '';
-        foreach (iterator_to_array($root->childNodes) as $child) $out .= $dom->saveHTML($child);
+        foreach (iterator_to_array($root->childNodes) as $child) {
+            $out .= $dom->saveHTML($child);
+        }
+
         return $out ?: '<p><br></p>';
     }
 }
