@@ -1,6 +1,11 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\WorkspaceController;
+use App\Http\Controllers\ModulePageController;
+use App\Http\Controllers\DocumentsWorkspaceController;
+use App\Http\Controllers\AiWorkspaceController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EditorAiAssistController;
@@ -84,6 +89,21 @@ Route::middleware(['auth','single.editor'])->group(function(){
     Route::post('/editor/export/{format}',[ExportController::class,'export'])->whereIn('format',['docx','pdf'])->middleware('throttle:10,10')->name('editor.export');
     Route::post('/editor/heartbeat',[EditorController::class,'heartbeat'])->middleware('throttle:60,1')->name('editor.heartbeat');
     Route::get('/dashboard',[EditorController::class,'dashboard'])->name('dashboard');
+    Route::get('/workspace/recent',[WorkspaceController::class,'recent'])->name('workspace.recent');
+    Route::get('/workspace/tasks',[WorkspaceController::class,'tasks'])->name('workspace.tasks');
+    Route::get('/workspace/actions',[WorkspaceController::class,'actions'])->name('workspace.actions');
+    Route::get('/workspace/shortcuts',[WorkspaceController::class,'shortcuts'])->name('workspace.shortcuts');
+    Route::get('/documents/mine',[DocumentsWorkspaceController::class,'mine'])->name('documents.mine');
+    Route::get('/documents/recent',[DocumentsWorkspaceController::class,'recent'])->name('documents.recent');
+    Route::get('/documents/drafts',[DocumentsWorkspaceController::class,'drafts'])->name('documents.drafts');
+    Route::get('/documents/deleted',[DocumentsWorkspaceController::class,'deleted'])->name('documents.deleted');
+    Route::get('/documents/all',[DocumentsWorkspaceController::class,'all'])->middleware('admin')->name('documents.all');
+    Route::get('/account',[AccountController::class,'show'])->name('account.show');
+    Route::put('/account',[AccountController::class,'update'])->middleware('throttle:20,10')->name('account.update');
+    Route::put('/account/password',[AccountController::class,'updatePassword'])->middleware('throttle:10,10')->name('account.password');
+    Route::get('/ai/history',[AiWorkspaceController::class,'history'])->name('ai.history');
+    Route::get('/ai/quota',[AiWorkspaceController::class,'quota'])->name('ai.quota');
+    Route::get('/modules/{key}',[ModulePageController::class,'show'])->where('key','[a-z0-9\-]+')->name('modules.show');
     Route::get('/support',[SupportController::class,'index'])->middleware('capability:can_support')->name('support');
     Route::post('/support/tickets',[SupportController::class,'create'])->middleware(['throttle:10,10','capability:can_support'])->name('support.create');
     Route::post('/support/tickets/{ticket}/messages',[SupportController::class,'message'])->middleware(['throttle:30,10','capability:can_support'])->name('support.message');
