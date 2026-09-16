@@ -5,15 +5,13 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
+/** farast-dashboard-build: 2026-09-16-v4-restore */
 class DashboardNavigationService
 {
     public function __construct(private readonly CapabilityService $capabilities)
     {
     }
 
-    /**
-     * Build the one dashboard tree for the current user.
-     */
     public function forUser(?User $user): array
     {
         return collect(config('dashboard.navigation', []))
@@ -23,7 +21,6 @@ class DashboardNavigationService
             ->all();
     }
 
-    /** @deprecated use forUser */
     public function groups(?User $user = null): array
     {
         return $this->forUser($user ?: auth()->user());
@@ -87,9 +84,6 @@ class DashboardNavigationService
                             break;
                         }
                     }
-                }
-                if ($active && isset($item['fragment'])) {
-                    $active = request()->url() === strtok($href, '#');
                 }
             }
         }
