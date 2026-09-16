@@ -1,1 +1,224 @@
-.farast-workspace .ws-grid{display:grid;gap:14px;grid-template-columns:1fr}.farast-workspace .ws-grid.two{grid-template-columns:1fr 1fr}.shortcut-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}.shortcut-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:110px;padding:18px 12px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;text-decoration:none;color:#334155;font-size:13px;font-weight:700;transition:border-color .15s,box-shadow .15s}.shortcut-card i{font-size:20px;color:#1769ff}.shortcut-card:hover{border-color:#b9d2fa;box-shadow:0 8px 24px rgba(23,105,255,.08)}.account-form{display:grid;gap:12px}.account-form label{display:grid;gap:6px;font-size:12px;color:#475569}.account-form input{width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;font:inherit}.account-form small{color:#94a3b8;font-size:11px}.form-error{color:#dc2626;font-size:12px}.ws-pagination{padding:16px 0}.module-empty .empty-state{padding:48px 20px}.module-empty .empty-state small{display:block;color:#94a3b8;font-size:11px;margin-top:4px}@media (max-width:900px){.farast-workspace .ws-grid.two{grid-template-columns:1fr}.shortcut-grid{grid-template-columns:repeat(2,1fr)}}
+/* FARAST workspace / dashboard inner pages */
+.farast-workspace .ws-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+.farast-workspace .ws-grid.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.shortcut-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 110px;
+  padding: 18px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  text-decoration: none;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color .15s, box-shadow .15s;
+}
+.shortcut-card i {
+  font-size: 20px;
+  color: #1769ff;
+}
+.shortcut-card:hover {
+  border-color: #b9d2fa;
+  box-shadow: 0 8px 24px rgba(23, 105, 255, .08);
+}
+
+.account-form {
+  display: grid;
+  gap: 12px;
+}
+.account-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+.account-form input,
+.account-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+  color: #0f172a;
+}
+.account-form textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+.account-form small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.form-error {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.ws-pagination {
+  padding: 16px 0;
+}
+
+.module-empty .empty-state {
+  padding: 48px 20px;
+}
+.module-empty .empty-state small {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* Support tickets */
+.support-layout .ticket-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+}
+.ticket-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ticket-head strong {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+}
+.ticket-head small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.ticket-status {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+  text-transform: lowercase;
+}
+.ticket-status.status-open { background: #dbeafe; color: #1d4ed8; }
+.ticket-status.status-answered { background: #dcfce7; color: #15803d; }
+.ticket-status.status-closed,
+.ticket-status.status-resolved { background: #f1f5f9; color: #64748b; }
+
+.ticket-thread {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.bubble {
+  padding: 10px 12px;
+  border-radius: 12px;
+  max-width: 92%;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.bubble p { margin: 0; }
+.bubble time {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  opacity: .7;
+}
+.bubble.mine {
+  margin-inline-start: auto;
+  background: #1769ff;
+  color: #fff;
+  border-bottom-left-radius: 4px;
+}
+.bubble.staff {
+  margin-inline-end: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+  border-bottom-right-radius: 4px;
+}
+
+.ticket-reply {
+  display: flex;
+  gap: 8px;
+}
+.ticket-reply input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font: inherit;
+}
+.ticket-reply .btn {
+  flex-shrink: 0;
+}
+
+/* Doc list rows refinement */
+.farast-workspace .doc {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, .7fr)) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+.farast-workspace .doc:last-child {
+  border-bottom: none;
+}
+.farast-workspace .doc > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.farast-workspace .doc > span:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farast-workspace .doc a {
+  color: #1769ff;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.farast-workspace .doc a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .farast-workspace .ws-grid.two {
+    grid-template-columns: 1fr;
+  }
+  .shortcut-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .farast-workspace .doc {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 10px;
+  }
+  .farast-workspace .doc > span:first-child {
+    grid-column: 1 / -1;
+  }
+}
