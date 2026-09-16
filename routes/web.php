@@ -60,6 +60,8 @@ Route::middleware('auth')->group(function(){
     Route::post('/editor/preflight/estimate',[TypingPreflightController::class,'estimate'])->middleware('throttle:30,10')->name('editor.preflight.estimate');
     Route::post('/editor/preflight/accept',[TypingPreflightController::class,'accept'])->middleware('throttle:30,10')->name('editor.preflight.accept');
     Route::post('/editor/preflight/decline',[TypingPreflightController::class,'decline'])->middleware('throttle:30,10')->name('editor.preflight.decline');
+    Route::get('/editor/pending',[EditorController::class,'pending'])->middleware('throttle:60,10')->name('editor.pending');
+    Route::post('/editor/upload',[EditorController::class,'upload'])->middleware('throttle:20,10')->name('editor.upload');
     Route::get('/library',[StoreLibraryController::class,'index'])->name('library');
     Route::post('/library/{libraryItem}/download',[StoreLibraryController::class,'issue'])->middleware('throttle:20,10')->name('library.download.issue');
     Route::get('/downloads/{download}',[StoreLibraryController::class,'stream'])->middleware('throttle:60,10')->name('store.download.stream');
