@@ -54,11 +54,10 @@ class DashboardNavigationService
         }
 
         $routeName = $item['route'] ?? null;
+        $routeParams = $item['route_params'] ?? [];
         $planned = (bool) ($item['planned'] ?? false);
 
         if ($routeName !== null && ! Route::has($routeName)) {
-            // A registry entry must never create a fake URL. If the module has
-            // not shipped yet, retain an explicit, non-actionable placeholder.
             $planned = true;
             $routeName = null;
         }
@@ -70,10 +69,28 @@ class DashboardNavigationService
         $href = null;
         $active = false;
         if ($routeName !== null) {
-            $href = route($routeName).($item['fragment'] ?? '');
-            $active = request()->routeIs($routeName);
-            if ($active && isset($item['fragment'])) {
-                $active = request()->getRequestUri() === $href;
+            try {
+                $href = route($routeName, $routeParams).($item['fragment'] ?? '');
+            } catch (\Throwable) {
+                $href = null;
+                $planned = true;
+            }
+
+            if ($href !== null) {
+                $active = request()->routeIs($routeName);
+                if ($active && ! empty($routeParams)) {
+                    foreach ($routeParams as $key => $value) {
+                        if ((string) request()->route($key) !== (string) $value) {
+                            $active = false;
+                            break;
+                        }
+                    }
+                }
+                if ($active && isset($item['fragment'])) {
+                    $active = request()->getRequestUri() === parse_url($href, PHP_URL_PATH).(isset($item['fragment']) ? '' : '');
+                    // Fragment matching is best-effort; path match is enough for nav highlight.
+                    $active = request()->url() === strtok($href, '#');
+                }
             }
         }
 
@@ -108,25 +125,18 @@ class DashboardNavigationService
         return true;
     }
 
-    /**
-     * Translate the existing capability store into the normalized permission
-     * vocabulary used by navigation. Unknown granular permissions are denied
-     * for non-admins until a real authorization source exists for them.
-     */
     private function allows(User $user, string $permission, string $scope): bool
     {
         if ($user->isAdmin()) {
             return true;
         }
 
-        // The current schema has no team/organization/global scope relation.
-        // Never imply broader access merely because a menu item exists.
         if (in_array($scope, ['team', 'organization', 'global'], true)) {
             return false;
         }
 
         $capability = match ($permission) {
-            'documents.view' => null, // owning documents are inherent to dashboard access
+            'documents.view' => null,
             'editor.use' => 'can_type',
             'ai.use' => 'can_ai',
             'support.use' => 'can_support',
