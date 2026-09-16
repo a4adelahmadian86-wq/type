@@ -7,64 +7,80 @@ use Illuminate\Support\Facades\Route;
 
 class DashboardNavigationService
 {
-    public function __construct(private readonly CapabilityService $capabilities)
+    public function __construct(protected CapabilityService $capabilities) {}
+
+    public function groups(?User $user = null): array
     {
+        $user = $user ?: auth()->user();
+        $definitions = config('dashboard.navigation', []);
+        $groups = [];
+
+        foreach ($definitions as $group) {
+            if (! $this->authorized($group, $user)) {
+                continue;
+            }
+
+            $items = [];
+            foreach ($group['items'] ?? [] as $item) {
+                if (! $this->authorized($item, $user)) {
+                    continue;
+                }
+                $items[] = $this->normalizeItem($item);
+            }
+
+            if ($items === []) {
+                continue;
+            }
+
+            $groups[] = [
+                'key' => $group['key'] ?? null,
+                'label' => $group['label'],
+                'icon' => $group['icon'] ?? 'fa-circle',
+                'items' => $items,
+            ];
+        }
+
+        return $groups;
     }
 
-    public function forUser(?User $user): array
+    private function normalizeItem(array $item): array
     {
-        return collect(config('dashboard.navigation', []))
-            ->map(fn (array $group) => $this->filterGroup($group, $user))
-            ->filter()
-            ->values()
-            ->all();
-    }
-
-    private function filterGroup(array $group, ?User $user): ?array
-    {
-        if (! $this->authorized($group, $user)) {
-            return null;
-        }
-
-        $items = collect($group['items'] ?? [])
-            ->map(fn (array $item) => $this->filterItem($item, $user))
-            ->filter()
-            ->values()
-            ->all();
-
-        return $items === [] ? null : [
-            'key' => $group['key'] ?? null,
-            'label' => $group['label'],
-            'icon' => $group['icon'],
-            'items' => $items,
-        ];
-    }
-
-    private function filterItem(array $item, ?User $user): ?array
-    {
-        if (! $this->authorized($item, $user)) {
-            return null;
-        }
-
-        $routeName = $item['route'] ?? null;
-        $planned = (bool) ($item['planned'] ?? false);
-
-        if ($routeName !== null && ! Route::has($routeName)) {
-            $planned = true;
-            $routeName = null;
-        }
-
-        if ($routeName === null && ! $planned) {
-            return null;
-        }
-
         $href = null;
         $active = false;
-        if ($routeName !== null) {
-            $href = route($routeName).($item['fragment'] ?? '');
-            $active = request()->routeIs($routeName);
-            if ($active && isset($item['fragment'])) {
-                $active = request()->getRequestUri() === $href;
+        $planned = false;
+
+        $routeName = $item['route'] ?? null;
+        $routeParams = $item['route_params'] ?? [];
+
+        if ($routeName) {
+            try {
+                if (Route::has($routeName)) {
+                    $href = route($routeName, $routeParams);
+                    if (! empty($item['fragment'])) {
+                        $href .= '#'.$item['fragment'];
+                    }
+                } else {
+                    $href = null;
+                    $planned = true;
+                }
+            } catch (\Throwable) {
+                $href = null;
+                $planned = true;
+            }
+
+            if ($href !== null) {
+                $active = request()->routeIs($routeName);
+                if ($active && ! empty($routeParams)) {
+                    foreach ($routeParams as $key => $value) {
+                        if ((string) request()->route($key) !== (string) $value) {
+                            $active = false;
+                            break;
+                        }
+                    }
+                }
+                if ($active && isset($item['fragment'])) {
+                    $active = request()->url() === strtok($href, '#');
+                }
             }
         }
 
