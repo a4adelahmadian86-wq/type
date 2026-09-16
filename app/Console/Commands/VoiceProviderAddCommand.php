@@ -9,12 +9,12 @@ use Illuminate\Support\Facades\Schema;
 class VoiceProviderAddCommand extends Command
 {
     protected $signature = 'voice:provider:add
-        {provider : google or azure}
+        {provider : google, azure or gladia}
         {--name= : Internal account name}
         {--model= : Provider model}
         {--region= : Provider region}
         {--project-id= : Google Cloud project ID}
-        {--key= : Azure Speech resource key}
+        {--key= : Azure Speech resource key or Gladia API key}
         {--credential-file= : JSON credential file for Google}
         {--trial : Mark this account as trial}
         {--monthly-free : Mark this account as monthly free}
@@ -33,14 +33,18 @@ class VoiceProviderAddCommand extends Command
         }
 
         $provider = strtolower(trim((string) $this->argument('provider')));
-        if (!in_array($provider, ['google', 'azure'], true)) {
-            $this->error('Supported providers: google, azure');
+        if (!in_array($provider, ['google', 'azure', 'gladia'], true)) {
+            $this->error('Supported providers: google, azure, gladia');
             return self::FAILURE;
         }
 
         $name = trim((string) ($this->option('name') ?: $this->ask('Internal account name', ucfirst($provider) . ' Voice')));
-        $region = trim((string) ($this->option('region') ?: $this->ask('Region', $provider === 'azure' ? 'eastus' : 'us')));
-        $model = trim((string) ($this->option('model') ?: ($provider === 'google' ? 'chirp_3' : 'speech')));
+        $region = trim((string) ($this->option('region') ?: $this->ask('Region', $provider === 'azure' ? 'eastus' : 'global')));
+        $model = trim((string) ($this->option('model') ?: match ($provider) {
+            'google' => 'chirp_3',
+            'gladia' => 'solaria-1',
+            default => 'speech',
+        }));
 
         $credentials = [];
         if ($provider === 'azure') {
@@ -50,6 +54,13 @@ class VoiceProviderAddCommand extends Command
                 return self::FAILURE;
             }
             $credentials = ['key' => $key, 'region' => $region];
+        } elseif ($provider === 'gladia') {
+            $key = trim((string) ($this->option('key') ?: $this->secret('Gladia API key')));
+            if ($key === '') {
+                $this->error('Gladia API key is required.');
+                return self::FAILURE;
+            }
+            $credentials = ['api_key' => $key];
         } else {
             $projectId = trim((string) ($this->option('project-id') ?: $this->ask('Google Cloud project ID')));
             if ($projectId === '') {
@@ -91,7 +102,11 @@ class VoiceProviderAddCommand extends Command
         $account->credit_expires_at = $expires !== null && $expires !== '' ? $expires : null;
         $account->quota_period_started_at = $billing === 'monthly_free' ? now() : null;
         $account->quota_period_ends_at = $billing === 'monthly_free' ? now()->addMonth() : null;
-        $account->quality_score = $provider === 'google' ? 98 : 94;
+        $account->quality_score = match ($provider) {
+            'google' => 98,
+            'gladia' => 95,
+            default => 94,
+        };
         $account->reliability_score = 90;
         $account->priority = (int) $this->option('priority');
         $account->enabled = true;
