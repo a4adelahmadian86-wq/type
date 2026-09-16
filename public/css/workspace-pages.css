@@ -1,0 +1,214 @@
+/* FARAST workspace / dashboard inner pages */
+.farast-workspace .ws-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+.farast-workspace .ws-grid.two {
+  grid-template-columns: 1fr 1fr;
+}
+.page-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.shortcut-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 110px;
+  padding: 18px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  text-decoration: none;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  transition: border-color .15s, box-shadow .15s;
+}
+.shortcut-card i {
+  font-size: 20px;
+  color: #1769ff;
+}
+.shortcut-card:hover {
+  border-color: #b9d2fa;
+  box-shadow: 0 8px 24px rgba(23, 105, 255, .08);
+}
+.account-form {
+  display: grid;
+  gap: 12px;
+}
+.account-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+.account-form input,
+.account-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+  color: #0f172a;
+}
+.account-form textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+.account-form small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.form-error {
+  color: #dc2626;
+  font-size: 12px;
+}
+.ws-pagination {
+  padding: 16px 0;
+}
+.module-empty .empty-state {
+  padding: 48px 20px;
+}
+.module-empty .empty-state small {
+  display: block;
+  color: #94a3b8;
+  font-size: 11px;
+  margin-top: 4px;
+}
+.support-layout .ticket-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #fafbfc;
+}
+.ticket-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.ticket-head strong {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+}
+.ticket-head small {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.ticket-status {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #e2e8f0;
+  color: #475569;
+}
+.ticket-status.status-open { background: #dbeafe; color: #1d4ed8; }
+.ticket-status.status-answered { background: #dcfce7; color: #15803d; }
+.ticket-status.status-closed,
+.ticket-status.status-resolved { background: #f1f5f9; color: #64748b; }
+.ticket-messages {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ticket-msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #eef2f7;
+  font-size: 13px;
+}
+.ticket-msg small {
+  display: block;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+.ticket-reply {
+  display: grid;
+  gap: 8px;
+}
+.ticket-reply textarea {
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+.announcement-row {
+  display: flex;
+  gap: 14px;
+  padding: 16px 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.announcement-row:last-child { border-bottom: none; }
+.announcement-row__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #eff6ff;
+  color: #1769ff;
+  flex-shrink: 0;
+}
+.announcement-row__body h2 {
+  margin: 6px 0;
+  font-size: 15px;
+  color: #0f172a;
+}
+.announcement-row__body p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+.library-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.library-card__cover {
+  height: 140px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #f8fafc, #eef2ff);
+  color: #64748b;
+  font-size: 28px;
+}
+.library-card__body {
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+@media (max-width: 900px) {
+  .farast-workspace .ws-grid.two { grid-template-columns: 1fr; }
+  .shortcut-grid { grid-template-columns: repeat(2, 1fr); }
+  .library-grid { grid-template-columns: 1fr; }
+}
