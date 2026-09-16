@@ -1,0 +1,436 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+/**
+ * Real route destinations for modules that do not yet have operational backends.
+ * These are honest empty-state pages — not fake data screens.
+ */
+class ModulePageController extends Controller
+{
+    private const CATALOG = [
+        'folders' => [
+            'title' => 'پوشه‌ها',
+            'eyebrow' => 'اسناد و فایل‌ها',
+            'icon' => 'fa-folder-tree',
+            'body' => 'ساختار پوشه‌بندی اسناد هنوز در سامانه فعال نشده است. پس از فعال‌سازی، اسناد شما قابل سازمان‌دهی در پوشه خواهند بود.',
+            'admin' => false,
+        ],
+        'shared' => [
+            'title' => 'اشتراک‌گذاری‌ها',
+            'eyebrow' => 'اسناد و فایل‌ها',
+            'icon' => 'fa-share-nodes',
+            'body' => 'اشتراک‌گذاری سند بین کاربران و تیم‌ها هنوز پیاده‌سازی نشده است.',
+            'admin' => false,
+        ],
+        'archive' => [
+            'title' => 'بایگانی',
+            'eyebrow' => 'اسناد و فایل‌ها',
+            'icon' => 'fa-box-archive',
+            'body' => 'بایگانی بلندمدت اسناد در نسخه فعلی در دسترس نیست.',
+            'admin' => false,
+        ],
+        'templates' => [
+            'title' => 'قالب‌ها',
+            'eyebrow' => 'ویرایشگر',
+            'icon' => 'fa-layer-group',
+            'body' => 'کتابخانه قالب‌های آماده هنوز اضافه نشده است.',
+            'admin' => false,
+        ],
+        'favorites' => [
+            'title' => 'موارد مورد علاقه',
+            'eyebrow' => 'ویرایشگر',
+            'icon' => 'fa-star',
+            'body' => 'نشان‌گذاری اسناد مورد علاقه هنوز فعال نیست.',
+            'admin' => false,
+        ],
+        'workflows' => [
+            'title' => 'گردش‌های کار',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-route',
+            'body' => 'موتور گردش کار هنوز در سامانه وجود ندارد. این صفحه محل نمایش گردش‌های تعریف‌شده خواهد بود.',
+            'admin' => false,
+        ],
+        'processes' => [
+            'title' => 'فرآیندها',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-diagram-next',
+            'body' => 'تعریف فرآیندهای خودکار هنوز پیاده‌سازی نشده است.',
+            'admin' => false,
+        ],
+        'rules' => [
+            'title' => 'قوانین',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-filter',
+            'body' => 'قوانین شرطی اتوماسیون هنوز در دسترس نیست.',
+            'admin' => false,
+        ],
+        'auto-actions' => [
+            'title' => 'اقدامات خودکار',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-bolt-lightning',
+            'body' => 'اقدامات خودکار هنوز پیکربندی نشده‌اند.',
+            'admin' => false,
+        ],
+        'runs' => [
+            'title' => 'اجرای‌های اخیر',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-clock-rotate-left',
+            'body' => 'تاریخچه اجرای فرآیند هنوز ثبت نمی‌شود.',
+            'admin' => false,
+        ],
+        'queues' => [
+            'title' => 'صف‌ها / اجرای‌ها',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-bars-progress',
+            'body' => 'صف اجرای فرآیندها هنوز راه‌اندازی نشده است.',
+            'admin' => false,
+        ],
+        'run-errors' => [
+            'title' => 'خطاهای اجرای فرآیند',
+            'eyebrow' => 'اتوماسیون',
+            'icon' => 'fa-triangle-exclamation',
+            'body' => 'گزارش خطای اجرای فرآیند هنوز موجود نیست.',
+            'admin' => false,
+        ],
+        'ai-analytics' => [
+            'title' => 'تحلیل‌های AI',
+            'eyebrow' => 'هوش مصنوعی',
+            'icon' => 'fa-chart-line',
+            'body' => 'داشبورد تحلیلی AI هنوز ساخته نشده است. تاریخچه عملیات در بخش «تاریخچه عملیات AI» قابل مشاهده است.',
+            'admin' => false,
+        ],
+        'ai-suggestions' => [
+            'title' => 'پیشنهادها',
+            'eyebrow' => 'هوش مصنوعی',
+            'icon' => 'fa-lightbulb',
+            'body' => 'مرکز پیشنهادهای هوشمند مستقل هنوز فعال نیست. پیشنهادهای داخل ویرایشگر در همان محیط نمایش داده می‌شوند.',
+            'admin' => false,
+        ],
+        'team-members' => [
+            'title' => 'اعضای تیم',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-users',
+            'body' => 'مدل تیمی و عضویت هنوز در پایگاه‌داده تعریف نشده است.',
+            'admin' => false,
+        ],
+        'teams' => [
+            'title' => 'تیم‌ها',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-users-rectangle',
+            'body' => 'مدیریت تیم‌ها هنوز پیاده‌سازی نشده است.',
+            'admin' => false,
+        ],
+        'invites' => [
+            'title' => 'دعوت‌ها',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-user-plus',
+            'body' => 'سامانه دعوت به تیم هنوز فعال نیست.',
+            'admin' => false,
+        ],
+        'collab-shared' => [
+            'title' => 'اشتراک‌گذاری',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-share-nodes',
+            'body' => 'اشتراک‌گذاری تیمی هنوز در دسترس نیست.',
+            'admin' => false,
+        ],
+        'collab-work' => [
+            'title' => 'همکاری‌ها',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-handshake',
+            'body' => 'فضای همکاری مشترک هنوز راه‌اندازی نشده است.',
+            'admin' => false,
+        ],
+        'team-activity' => [
+            'title' => 'فعالیت تیم',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-chart-simple',
+            'body' => 'فید فعالیت تیمی هنوز وجود ندارد.',
+            'admin' => false,
+        ],
+        'team-requests' => [
+            'title' => 'درخواست‌ها',
+            'eyebrow' => 'تیم و همکاری',
+            'icon' => 'fa-inbox',
+            'body' => 'درخواست‌های همکاری هنوز پیاده‌سازی نشده‌اند.',
+            'admin' => false,
+        ],
+        'reports-overview' => [
+            'title' => 'گزارش کلی',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-chart-column',
+            'body' => 'موتور گزارش‌گیری سازمانی هنوز فعال نیست. هیچ عدد جعلی نمایش داده نمی‌شود.',
+            'admin' => false,
+        ],
+        'reports-users' => [
+            'title' => 'فعالیت کاربران',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-user-chart',
+            'body' => 'گزارش فعالیت کاربران هنوز در دسترس نیست.',
+            'admin' => true,
+        ],
+        'reports-team' => [
+            'title' => 'عملکرد تیم',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-people-group',
+            'body' => 'گزارش عملکرد تیم نیازمند مدل تیمی است که هنوز وجود ندارد.',
+            'admin' => false,
+        ],
+        'reports-documents' => [
+            'title' => 'گزارش اسناد',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-file-chart-column',
+            'body' => 'گزارش تجمیعی اسناد هنوز پیاده‌سازی نشده است.',
+            'admin' => false,
+        ],
+        'reports-workflows' => [
+            'title' => 'گزارش گردش کار',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-route',
+            'body' => 'گزارش گردش کار منوط به وجود موتور اتوماسیون است.',
+            'admin' => false,
+        ],
+        'reports-ai' => [
+            'title' => 'گزارش AI',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-wand-magic-sparkles',
+            'body' => 'گزارش تجمیعی AI هنوز آماده نیست. مصرف شخصی در بخش سهمیه AI قابل مشاهده است.',
+            'admin' => false,
+        ],
+        'reports-resources' => [
+            'title' => 'مصرف منابع',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-gauge',
+            'body' => 'مانیتورینگ منابع سیستم هنوز متصل نشده است.',
+            'admin' => true,
+        ],
+        'reports-system' => [
+            'title' => 'گزارش‌های سیستمی',
+            'eyebrow' => 'گزارش‌ها',
+            'icon' => 'fa-server',
+            'body' => 'گزارش‌های سیستمی سطح زیرساخت هنوز فعال نیستند.',
+            'admin' => true,
+        ],
+        'messages' => [
+            'title' => 'پیام‌ها',
+            'eyebrow' => 'اعلان‌ها',
+            'icon' => 'fa-messages',
+            'body' => 'صندوق پیام داخلی هنوز راه‌اندازی نشده است. برای پشتیبانی از تیکت‌ها استفاده کنید.',
+            'admin' => false,
+        ],
+        'activity-feed' => [
+            'title' => 'فعالیت‌ها',
+            'eyebrow' => 'اعلان‌ها',
+            'icon' => 'fa-list-check',
+            'body' => 'فید فعالیت شخصی هنوز پیاده‌سازی نشده است. فعالیت‌های اخیر در بخش میز کار موجود است.',
+            'admin' => false,
+        ],
+        'notification-settings' => [
+            'title' => 'تنظیمات اعلان',
+            'eyebrow' => 'اعلان‌ها',
+            'icon' => 'fa-sliders',
+            'body' => 'تنظیمات کانال اعلان (ایمیل/پیامک/داخل‌برنامه) هنوز پیکربندی نشده است.',
+            'admin' => false,
+        ],
+        'roles' => [
+            'title' => 'نقش‌ها',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-id-badge',
+            'body' => 'مدیریت نقش‌های پیشرفته فراتر از فیلد role فعلی هنوز ساخته نشده است.',
+            'admin' => true,
+        ],
+        'permissions' => [
+            'title' => 'مجوزها',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-key',
+            'body' => 'جدول مجوزهای دانه‌ریز هنوز جدا از قابلیت‌های حساب تعریف نشده است.',
+            'admin' => true,
+        ],
+        'groups' => [
+            'title' => 'گروه‌ها',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-layer-group',
+            'body' => 'گروه‌بندی کاربران هنوز پیاده‌سازی نشده است.',
+            'admin' => true,
+        ],
+        'access-teams' => [
+            'title' => 'تیم‌ها (دسترسی)',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-users-rectangle',
+            'body' => 'تیم‌ها در لایه دسترسی هنوز تعریف نشده‌اند.',
+            'admin' => true,
+        ],
+        'access-requests' => [
+            'title' => 'درخواست‌های دسترسی',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-user-clock',
+            'body' => 'گردش درخواست دسترسی هنوز فعال نیست.',
+            'admin' => true,
+        ],
+        'user-activity' => [
+            'title' => 'فعالیت کاربران',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-list-check',
+            'body' => 'لاگ تجمیعی فعالیت کاربران هنوز موجود نیست.',
+            'admin' => true,
+        ],
+        'sessions' => [
+            'title' => 'نشست‌ها',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-display',
+            'body' => 'مدیریت نشست‌های فعال کاربران هنوز پیاده‌سازی نشده است. نشست ویرایشگر به صورت جداگانه کنترل می‌شود.',
+            'admin' => true,
+        ],
+        'account-status' => [
+            'title' => 'وضعیت حساب‌ها',
+            'eyebrow' => 'دسترسی‌ها',
+            'icon' => 'fa-user-check',
+            'body' => 'نمای تجمیعی وضعیت حساب‌ها در پنل ادمین کاربران قابل مدیریت است.',
+            'admin' => true,
+        ],
+        'org-info' => [
+            'title' => 'اطلاعات سازمان',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-building',
+            'body' => 'مدل سازمان چندمستأجری هنوز در پایگاه‌داده وجود ندارد.',
+            'admin' => true,
+        ],
+        'org-structure' => [
+            'title' => 'ساختار سازمانی',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-sitemap',
+            'body' => 'ساختار سازمانی هنوز تعریف نشده است.',
+            'admin' => true,
+        ],
+        'org-units' => [
+            'title' => 'واحدها',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-diagram-project',
+            'body' => 'واحدهای سازمانی هنوز پیاده‌سازی نشده‌اند.',
+            'admin' => true,
+        ],
+        'org-teams' => [
+            'title' => 'تیم‌های سازمان',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-users-rectangle',
+            'body' => 'تیم‌های سازمانی هنوز فعال نیستند.',
+            'admin' => true,
+        ],
+        'org-members' => [
+            'title' => 'اعضای سازمان',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-users',
+            'body' => 'عضویت سازمانی هنوز تعریف نشده است.',
+            'admin' => true,
+        ],
+        'org-policies' => [
+            'title' => 'سیاست‌ها',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-shield-halved',
+            'body' => 'سیاست‌های سازمانی هنوز پیکربندی نشده‌اند.',
+            'admin' => true,
+        ],
+        'org-settings' => [
+            'title' => 'تنظیمات سازمان',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-gear',
+            'body' => 'تنظیمات سطح سازمان هنوز وجود ندارد.',
+            'admin' => true,
+        ],
+        'org-brand' => [
+            'title' => 'برند سازمان',
+            'eyebrow' => 'سازمان',
+            'icon' => 'fa-palette',
+            'body' => 'سفارشی‌سازی برند سازمانی هنوز فعال نیست.',
+            'admin' => true,
+        ],
+        'security-report' => [
+            'title' => 'گزارش امنیتی',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-file-shield',
+            'body' => 'گزارش امنیتی تجمیعی هنوز تولید نمی‌شود.',
+            'admin' => true,
+        ],
+        'security-sensitive' => [
+            'title' => 'فعالیت‌های حساس',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-user-lock',
+            'body' => 'ثبت و نمایش فعالیت‌های حساس هنوز کامل نشده است.',
+            'admin' => true,
+        ],
+        'security-logs' => [
+            'title' => 'لاگ‌ها',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-list',
+            'body' => 'مرورگر لاگ امنیتی داخل داشبورد هنوز متصل نشده است.',
+            'admin' => true,
+        ],
+        'security-logins' => [
+            'title' => 'ورودها',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-right-to-bracket',
+            'body' => 'تاریخچه ورود کاربران هنوز در داشبورد نمایش داده نمی‌شود.',
+            'admin' => true,
+        ],
+        'security-events' => [
+            'title' => 'رویدادهای امنیتی',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-triangle-exclamation',
+            'body' => 'رویدادهای امنیتی ساختاریافته هنوز ثبت نمی‌شوند.',
+            'admin' => true,
+        ],
+        'security-access' => [
+            'title' => 'دسترسی‌های حساس',
+            'eyebrow' => 'امنیت',
+            'icon' => 'fa-key',
+            'body' => 'ممیزی دسترسی‌های حساس هنوز پیاده‌سازی نشده است.',
+            'admin' => true,
+        ],
+        'ui-settings' => [
+            'title' => 'تنظیمات رابط کاربری',
+            'eyebrow' => 'تنظیمات',
+            'icon' => 'fa-display',
+            'body' => 'ترجیحات UI شخصی (تم، فشردگی منو و ...) هنوز ذخیره نمی‌شوند. جمع‌شدن سایدبار در مرورگر شما محلی ذخیره می‌شود.',
+            'admin' => false,
+        ],
+        'security-settings' => [
+            'title' => 'امنیت حساب',
+            'eyebrow' => 'تنظیمات',
+            'icon' => 'fa-lock',
+            'body' => 'تنظیمات امنیتی پیشرفته (۲FA و نشست‌ها) هنوز اضافه نشده است. تغییر رمز از صفحه تنظیمات حساب امکان‌پذیر است.',
+            'admin' => false,
+        ],
+        'help' => [
+            'title' => 'راهنما',
+            'eyebrow' => 'پشتیبانی',
+            'icon' => 'fa-circle-question',
+            'body' => 'برای دریافت کمک عملی از بخش پشتیبانی تیکت ثبت کنید. مستندات کامل راهنما به‌زودی در همین بخش قرار می‌گیرد.',
+            'admin' => false,
+        ],
+        'about' => [
+            'title' => 'درباره سیستم',
+            'eyebrow' => 'فراست',
+            'icon' => 'fa-circle-info',
+            'body' => 'فراست یک بستر یکپارچه برای فروش فایل دیجیتال و خدمات تایپ، تبدیل و پردازش هوشمند است. نسخه فعلی روی معماری داشبورد یکپارچه با فیلتر نقش و قابلیت کار می‌کند.',
+            'admin' => false,
+        ],
+    ];
+
+    public function show(Request $request, string $slug)
+    {
+        $page = self::CATALOG[$slug] ?? null;
+        abort_unless($page, 404);
+
+        if (($page['admin'] ?? false) && ! $request->user()->isAdmin()) {
+            abort(403);
+        }
+
+        return view('modules.empty', [
+            'page' => $page,
+            'slug' => $slug,
+        ]);
+    }
+}
