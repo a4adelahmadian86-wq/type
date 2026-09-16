@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><meta name="theme-color" content="#0b1734"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="فراست"><!-- farast-dashboard-build: 2026-09-16-v4-restore -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><meta name="theme-color" content="#0b1734"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="فراست"><!-- farast-dashboard-build: FULL-aa28699-email+nav | NOT 372084b -->
 <title>{{ $title ?? 'فراست' }}</title>
 @php
     $isEditor = request()->is('editor');
@@ -22,11 +22,9 @@
         || request()->is('wallet')
         || request()->is('support')
         || request()->is('library')
-        || request()->is('announcements')
         || request()->is('workspace/*')
         || request()->is('documents/*')
-        || request()->is('account')
-        || request()->is('account/*')
+        || request()->is('account*')
         || request()->is('ai/*')
         || request()->is('modules/*')
     );
@@ -57,8 +55,8 @@
 <link rel="stylesheet" href="/css/farast-app.css">
 <link rel="stylesheet" href="/css/finance.css">
 @if($isDashboard)
-<link rel="stylesheet" href="/css/dashboard-navigation.css?v=20260916-v4">
-<link rel="stylesheet" href="/css/workspace-pages.css?v=20260916-v4">
+<link rel="stylesheet" href="/css/dashboard-navigation.css?v=full-aa28699">
+<link rel="stylesheet" href="/css/workspace-pages.css?v=full-aa28699">
 @endif
 @if($isEditor)
 <meta name="farast-capabilities" content='@json($farastCapabilities)'>
@@ -76,12 +74,18 @@
 <link rel="stylesheet" href="/css/editor-ai-selection-actions.css?v=20260915">
 <link rel="stylesheet" href="/css/editor-word-2026-responsive.css?v=20260916">
 @endif
-@if($isAdmin)<link rel="stylesheet" href="/css/admin.css"><link rel="stylesheet" href="/css/admin-email.css">@endif
+@if($isAdmin)
+<link rel="stylesheet" href="/css/admin.css">
+<link rel="stylesheet" href="/css/admin-email.css?v=full-aa28699">
+@endif
 @if(request()->is('store*') || request()->is('library') || request()->is('checkout*'))
 <link rel="stylesheet" href="/css/store.css">
 @endif
 @if($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
 @stack('styles')
+@if($isEditor && !empty($openDocument))
+<script>window.__openDoc = @json($openDocument);</script>
+@endif
 </head>
 <body class="{{ $isEditor ? 'is-editor' : '' }} {{ $isAdmin ? 'is-admin' : '' }} {{ $isDashboard ? 'is-dashboard' : '' }} {{ $isAuthPage ? 'is-auth' : '' }}">
 @if(!$isEditor && !$isAdmin && !$isDashboard)
@@ -167,6 +171,9 @@
 <script src="/js/editor-file-picker.js?v=20260914"></script>
 @endif
 @stack('scripts')
+@if($isEditor && !empty($openDocument))
+<script src="/js/editor-open-document.js"></script>
+@endif
 <script>document.documentElement.classList.add('js-ready');</script>
 </body>
 </html>
