@@ -45,7 +45,7 @@
                 <article class="doc">
                     <span><i class="fa-solid fa-receipt"></i><span>#{{ $o->id }}</span></span>
                     <span>{{ $o->status }}</span>
-                    <span>{{ number_format((int) $o->amount_rials) }} ریال</span>
+                    <span>{{ number_format((int) $o->total_rials) }} ریال</span>
                     <span>{{ $o->created_at?->diffForHumans() }}</span>
                 </article>
             @empty

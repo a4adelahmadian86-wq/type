@@ -36,7 +36,7 @@ class WorkspaceController extends Controller
                 ->where('user_id', $user->id)
                 ->latest()
                 ->limit(10)
-                ->get(['id', 'status', 'amount_rials', 'created_at', 'document_id'])
+                ->get(['id', 'status', 'total_rials', 'created_at', 'document_id'])
             : collect();
 
         return view('workspace.recent', compact('documents', 'ai', 'orders'));
@@ -49,7 +49,7 @@ class WorkspaceController extends Controller
         $openTickets = Schema::hasTable('tickets')
             ? Ticket::query()
                 ->where('user_id', $user->id)
-                ->whereIn('status', ['open', 'pending', 'answered', 'waiting'])
+                ->whereNotIn('status', ['closed', 'resolved'])
                 ->latest()
                 ->limit(20)
                 ->get()
@@ -116,6 +116,7 @@ class WorkspaceController extends Controller
             ['label' => 'کیف پول', 'route' => 'wallet', 'icon' => 'fa-wallet', 'show' => true],
             ['label' => 'پشتیبانی', 'route' => 'support', 'icon' => 'fa-headset', 'show' => (bool) ($caps['can_support'] ?? false)],
             ['label' => 'اعلان‌ها', 'route' => 'announcements', 'icon' => 'fa-bell', 'show' => true],
+            ['label' => 'تنظیمات حساب', 'route' => 'account.show', 'icon' => 'fa-user-gear', 'show' => true],
         ];
 
         if (auth()->user()->isAdmin()) {
