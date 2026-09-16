@@ -1,32 +1,13 @@
 (()=>{
   'use strict';
-  if(window.__farastVoiceRuntimeLoaderInstalled)return;
-  window.__farastVoiceRuntimeLoaderInstalled=true;
-
-  const load=()=>{
-    const editor=document.getElementById('editor');
-    const mic=document.getElementById('mic');
-    if(!editor||!mic)return;
+  /* The editor layout loads farast-voice.js directly. This file remains as a compatibility hook only. */
+  if(window.__farastVoicePopoverHookInstalled)return;
+  window.__farastVoicePopoverHookInstalled=true;
+  const verify=()=>{
     if(document.getElementById('farastVoicePanel'))return;
-
-    const script=document.createElement('script');
-    script.src='/js/farast-voice.js?v=20260916-2';
-    script.async=false;
-    script.onload=()=>{
-      if(!document.getElementById('farastVoicePanel')){
-        setTimeout(load,50);
-      }
-    };
-    script.onerror=()=>{
-      window.__farastVoiceRuntimeLoaderInstalled=false;
-      console.error('[FARAST VOICE] Failed to load /js/farast-voice.js');
-    };
-    document.head.appendChild(script);
+    const mic=document.getElementById('mic');
+    if(!mic)console.warn('[FARAST VOICE] Microphone button was not found yet.');
   };
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',load,{once:true});
-  }else{
-    load();
-  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',verify,{once:true});
+  else verify();
 })();
