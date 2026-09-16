@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "engines": {"node": ">=20"},
-  "scripts": {"start": "node server.mjs"},
+  "scripts": {"start": "node server-pro.mjs"},
   "dependencies": {
     "@google-cloud/speech": "^8.1.0",
     "dotenv": "^16.4.7",
