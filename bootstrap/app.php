@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'single.editor' => App\Http\Middleware\EnsureSingleEditor::class,
             'admin' => App\Http\Middleware\AdminOnly::class,
+            'capability' => App\Http\Middleware\EnsureCapability::class,
         ]);
         $middleware->append(App\Http\Middleware\EnsurePrivateStorageDisk::class);
     })
