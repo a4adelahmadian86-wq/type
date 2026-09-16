@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
-/** farast-dashboard-build: 2026-09-16-v4-restore */
 class DashboardNavigationService
 {
     public function __construct(private readonly CapabilityService $capabilities)

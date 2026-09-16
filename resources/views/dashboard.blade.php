@@ -1,6 +1,9 @@
 @extends('layouts.app')
 @section('content')
-{{-- farast-dashboard-build: 2026-09-16-v4-restore --}}
+<div style="background:#091735;color:#fff;padding:10px 14px;border-radius:10px;margin-bottom:14px;font:12px Vazirmatn,Tahoma;display:flex;justify-content:space-between;align-items:center" data-farast-build="BUILD-SYNC-NAV-TO-MAIN-aa28699">
+  <span><b>داشبورد حرفه‌ای فراست</b> — ناوبری چندسطحی فعال است (sync از farast/dashboard-navigation)</span>
+  <span style="opacity:.7;font-size:10px">BUILD-SYNC-NAV-TO-MAIN-aa28699</span>
+</div>
 <div class="container user-dashboard" dir="rtl">
     <header class="page-head">
         <div>
@@ -20,7 +23,7 @@
     </section>
     <div class="dashboard-content-grid">
         <section class="panel capability-panel">
-            <div class="panel-heading"><div><h2>قابلیت‌های حساب</h2><p>دسترسی‌ها از سمت سامانه محاسبه می‌شوند.</p></div></div>
+            <div class="panel-heading"><div><h2>قابلیت‌های حساب</h2><p>دسترسی‌ها از سمت سامانه محاسبه می‌شوند و صرفاً نمایشی نیستند.</p></div></div>
             <div class="capability-chips">
                 @foreach(['can_type'=>'تایپ و ویرایش','can_ai'=>'هوش مصنوعی','can_voice'=>'تایپ صوتی','can_export_docx'=>'خروجی Word','can_export_pdf'=>'خروجی PDF','can_feedback'=>'بازخورد','can_support'=>'پشتیبانی'] as $key=>$label)
                     <span class="cap-chip {{ $capabilities[$key] ? 'on' : 'off' }}"><i class="fa-solid {{ $capabilities[$key] ? 'fa-check' : 'fa-lock' }}"></i>{{ $label }}</span>
@@ -28,8 +31,8 @@
             </div>
         </section>
         <section class="panel account-panel">
-            <div class="panel-heading"><div><h2>حساب و دسترسی</h2></div></div>
-            <div class="account-state"><span class="account-state__icon"><i class="fa-solid {{ $capabilities['active'] ? 'fa-user-check' : 'fa-user-lock' }}"></i></span><div><strong>{{ $capabilities['active'] ? 'حساب فعال' : 'دسترسی محدود' }}</strong><small>{{ auth()->user()->is_verified ? 'تأییدشده' : 'تأیید نشده' }}</small></div></div>
+            <div class="panel-heading"><div><h2>حساب و دسترسی</h2><p>وضعیت فعلی حساب شما</p></div></div>
+            <div class="account-state"><span class="account-state__icon"><i class="fa-solid {{ $capabilities['active'] ? 'fa-user-check' : 'fa-user-lock' }}"></i></span><div><strong>{{ $capabilities['active'] ? 'حساب فعال' : 'دسترسی محدود' }}</strong><small>{{ auth()->user()->is_verified ? 'حساب تأییدشده' : 'حساب هنوز تأیید نشده است' }}</small></div></div>
             <div class="account-actions">
                 @if($capabilities['can_support'])<a href="{{ route('support') }}"><i class="fa-solid fa-headset"></i> پشتیبانی</a>@endif
                 <a href="{{ route('wallet') }}"><i class="fa-solid fa-wallet"></i> کیف پول</a>
@@ -39,13 +42,13 @@
         </section>
     </div>
     <section class="panel recent-documents">
-        <div class="panel-heading"><div><h2>اسناد اخیر</h2></div><span class="dashboard-count">{{ number_format($documents->count()) }}</span></div>
+        <div class="panel-heading"><div><h2>اسناد اخیر</h2><p>هر سند فقط برای حساب مالک آن نمایش داده می‌شود.</p></div><span class="dashboard-count">{{ number_format($documents->count()) }}</span></div>
         @forelse($documents as $d)
             <article class="doc">
                 <span><i class="fa-regular fa-file-lines"></i><span>{{ $d->title }}</span></span>
                 <span>{{ number_format($d->page_count) }} صفحه</span>
                 <span>{{ number_format($d->price_rials) }} ریال</span>
-                <a href="{{ route('editor') }}?doc={{ $d->id }}"><i class="fa-solid fa-arrow-left"></i> باز کردن</a>
+                <a href="{{ route('editor') }}"><i class="fa-solid fa-arrow-left"></i> باز کردن در ویرایشگر</a>
             </article>
         @empty
             <div class="empty-state"><i class="fa-regular fa-folder-open"></i><p>هنوز سندی ندارید.</p>@if($capabilities['can_type'])<a href="{{ route('editor') }}">ایجاد اولین سند</a>@endif</div>
