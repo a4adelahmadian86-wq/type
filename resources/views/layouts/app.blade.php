@@ -174,6 +174,9 @@
 <script src="/js/editor-redesign.js"></script>
 <script src="/js/editor-redesign-guard.js"></script>
 <script src="/js/editor-tools-patch.js"></script>
+@if(!empty($openDocument))
+<script src="/js/editor-open-document.js"></script>
+@endif
 @endif
 @stack('scripts')
 <script>document.documentElement.classList.add('js-ready');</script>
