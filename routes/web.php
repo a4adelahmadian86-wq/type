@@ -52,8 +52,10 @@ Route::post('/login/email',[AuthController::class,'requestEmailOtp'])->middlewar
 Route::post('/login/email/verify',[AuthController::class,'verifyEmailOtp'])->middleware('throttle:10,10')->name('login.email.verify');
 Route::get('/login/email/mobile',[AuthController::class,'emailMobileForm'])->name('login.email.mobile');
 Route::post('/login/email/mobile',[AuthController::class,'requestEmailMobileOtp'])->middleware('throttle:5,10')->name('login.email.mobile.request');
-Route::post('/login/email/mobile/verify',[AuthController::class,'verifyEmailMobileOtp'])->middleware('throttle:10,10')->name('login.email.mobile.verify');
 Route::post('/logout',[AuthController::class,'logout'])->middleware('auth')->name('logout');
+
+Route::post('/editor/voice/stream-config',[VoiceController::class,'streamConfig'])->middleware('throttle:120,1')->name('editor.voice.stream-config');
+Route::post('/editor/voice/stream-usage',[VoiceController::class,'streamUsage'])->middleware('throttle:120,1')->name('editor.voice.stream-usage');
 
 Route::middleware('auth')->group(function(){
     Route::get('/editor/preflight/estimate',[TypingPreflightController::class,'estimate'])->middleware('throttle:30,10')->name('editor.preflight.estimate.get');
