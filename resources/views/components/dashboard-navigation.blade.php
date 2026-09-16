@@ -1,4 +1,4 @@
-{{-- farast-nav-build: 2026-09-16-v3 --}}
+{{-- farast-nav-build: 2026-09-16-v4-restore --}}
 @php
     $navigation = app(\App\Services\DashboardNavigationService::class)->forUser(auth()->user());
     $isAdminNavigation = auth()->user()?->isAdmin() === true;
