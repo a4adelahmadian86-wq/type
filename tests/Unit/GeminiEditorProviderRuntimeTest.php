@@ -2,28 +2,25 @@
 
 namespace Tests\Unit;
 
+use App\Models\SiteSetting;
 use App\Services\AI\Providers\GeminiEditorProvider;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
-use Mockery;
 use Tests\TestCase;
 
 class GeminiEditorProviderRuntimeTest extends TestCase
 {
-    protected function tearDown(): void
+    use RefreshDatabase;
+
+    private function configureGemini(): void
     {
-        Mockery::close();
-        parent::tearDown();
+        SiteSetting::write('gemini_api_key', 'test-gemini-key', true);
+        SiteSetting::write('gemini_model', 'gemini-3.8-flash');
     }
 
     public function test_gemini_provider_reads_structured_text_from_new_steps_response(): void
     {
-        Mockery::mock('alias:App\\Models\\SiteSetting')
-            ->shouldReceive('read')
-            ->andReturnUsing(static fn (string $key, mixed $default = null) => match ($key) {
-                'gemini_api_key' => 'test-gemini-key',
-                'gemini_model' => 'gemini-3.8-flash',
-                default => $default,
-            });
+        $this->configureGemini();
 
         Http::fake([
             'https://generativelanguage.googleapis.com/v1beta/interactions' => Http::response([
@@ -64,13 +61,7 @@ class GeminiEditorProviderRuntimeTest extends TestCase
 
     public function test_gemini_provider_maps_auth_failure_to_stable_error_code(): void
     {
-        Mockery::mock('alias:App\\Models\\SiteSetting')
-            ->shouldReceive('read')
-            ->andReturnUsing(static fn (string $key, mixed $default = null) => match ($key) {
-                'gemini_api_key' => 'test-gemini-key',
-                'gemini_model' => 'gemini-3.8-flash',
-                default => $default,
-            });
+        $this->configureGemini();
 
         Http::fake([
             'https://generativelanguage.googleapis.com/v1beta/interactions' => Http::response(['error' => ['message' => 'invalid key']], 401),
