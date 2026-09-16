@@ -5,7 +5,6 @@
 @php
     $isEditor = request()->is('editor');
     $isAdmin = request()->is('admin*');
-    // Workspace shell covers the shared dashboard navigation for authenticated operational pages.
     $isDashboard = auth()->check() && (
         request()->routeIs('dashboard')
         || request()->routeIs('admin.*')
@@ -14,6 +13,11 @@
         || request()->routeIs('library')
         || request()->routeIs('announcements')
         || request()->routeIs('checkout')
+        || request()->routeIs('workspace.*')
+        || request()->routeIs('documents.*')
+        || request()->routeIs('account.*')
+        || request()->routeIs('ai.*')
+        || request()->routeIs('modules.show')
     );
     $isAuthPage = request()->is('login*') || request()->is('register') || request()->is('forgot-password*');
     $headerAnnouncements = collect();
@@ -22,7 +26,7 @@
     if ($isEditor && auth()->check()) {
         $farastCapabilities = app(\App\Services\CapabilityService::class)->forUser(auth()->user());
     }
-    if (!$isEditor && !$isAdmin && !$isDashboard) {
+    if (! $isEditor && ! $isAdmin && ! $isDashboard) {
         if (\Illuminate\Support\Facades\Schema::hasTable('announcements')) {
             $headerAnnouncements = \App\Models\Announcement::visible()->latest()->limit(5)->get();
         }
@@ -36,7 +40,10 @@
     }
 @endphp
 <link rel="preconnect" href="https://cdnjs.cloudflare.com"><link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"><link rel="stylesheet" href="/css/farast.css"><link rel="stylesheet" href="/css/ui-polish.css"><link rel="stylesheet" href="/css/site-premium.css"><link rel="stylesheet" href="/css/farast-app.css"><link rel="stylesheet" href="/css/finance.css">
-@if($isDashboard)<link rel="stylesheet" href="/css/dashboard-navigation.css">@endif
+@if($isDashboard)
+<link rel="stylesheet" href="/css/dashboard-navigation.css">
+<link rel="stylesheet" href="/css/workspace-pages.css">
+@endif
 @if($isEditor)<meta name="farast-capabilities" content='@json($farastCapabilities)'><link rel="stylesheet" href="/css/voice.css"><link rel="stylesheet" href="/css/word-editor.css"><link rel="stylesheet" href="/css/word-editor-overrides.css"><link rel="stylesheet" href="/css/editor-pro.css"><link rel="stylesheet" href="/css/editor-workspace.css">@endif
 @if($isAdmin)<link rel="stylesheet" href="/css/admin.css">@endif
 @if($isAuthPage)<link rel="stylesheet" href="/css/auth.css">@endif
